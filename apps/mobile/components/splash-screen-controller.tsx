@@ -1,14 +1,14 @@
-import { useAuthContext } from "@/hooks/use-auth-context";
-import { SplashScreen } from "expo-router";
+import { useAuthContext } from '@/hooks/use-auth'
+import { SplashScreen } from 'expo-router'
 
-SplashScreen.preventAutoHideAsync();
+SplashScreen.preventAutoHideAsync()
 
 export function SplashScreenController() {
-  const { loading } = useAuthContext();
+  const { isLoading } = useAuthContext()
 
-  if (!loading) {
-    SplashScreen.hideAsync();
+  if (!isLoading) {
+    SplashScreen.hideAsync()
   }
 
-  return null;
+  return null
 }

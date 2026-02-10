@@ -1,14 +1,15 @@
-import { supabase } from "@/services/supabase";
-import { router } from "expo-router";
 import { useState } from "react";
 import {
-    Alert,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
+import { router } from "expo-router";
+import { supabase } from "@/services/supabase";
 
 export default function LoginScreen() {
   const [email, setEmail] = useState("");
@@ -30,7 +31,7 @@ export default function LoginScreen() {
 
       if (error) throw error;
 
-      router.replace("/");
+      router.replace("/(tabs)");
     } catch (error: any) {
       Alert.alert("Login Failed", error.message);
     } finally {
@@ -39,93 +40,73 @@ export default function LoginScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Walkie-Talkie</Text>
-      <Text style={styles.subtitle}>Login to continue</Text>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      className="flex-1 bg-gray-900"
+    >
+      <View className="flex-1 justify-center px-6">
+        {/* Header */}
+        <View className="mb-10">
+          <Text className="text-4xl font-bold text-white mb-2">
+            Welcome Back
+          </Text>
+          <Text className="text-gray-400 text-base">Sign in to continue</Text>
+        </View>
 
-      <TextInput
-        style={styles.input}
-        placeholder="Email"
-        placeholderTextColor="#9ca3af"
-        value={email}
-        onChangeText={setEmail}
-        autoCapitalize="none"
-        keyboardType="email-address"
-      />
+        {/* Form */}
+        <View className="space-y-4">
+          <View>
+            <Text className="text-gray-300 mb-2 text-sm font-medium">
+              Email
+            </Text>
+            <TextInput
+              className="bg-gray-800 text-white px-4 py-4 rounded-xl text-base"
+              placeholder="your@email.com"
+              placeholderTextColor="#6b7280"
+              value={email}
+              onChangeText={setEmail}
+              autoCapitalize="none"
+              keyboardType="email-address"
+              editable={!loading}
+            />
+          </View>
 
-      <TextInput
-        style={styles.input}
-        placeholder="Password"
-        placeholderTextColor="#9ca3af"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-      />
+          <View>
+            <Text className="text-gray-300 mb-2 text-sm font-medium">
+              Password
+            </Text>
+            <TextInput
+              className="bg-gray-800 text-white px-4 py-4 rounded-xl text-base"
+              placeholder="Enter your password"
+              placeholderTextColor="#6b7280"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+              editable={!loading}
+            />
+          </View>
 
-      <TouchableOpacity
-        style={[styles.button, loading && styles.buttonDisabled]}
-        onPress={handleLogin}
-        disabled={loading}
-      >
-        <Text style={styles.buttonText}>
-          {loading ? "Logging in..." : "Login"}
-        </Text>
-      </TouchableOpacity>
+          <TouchableOpacity
+            className={`bg-blue-600 py-4 rounded-xl mt-6 ${
+              loading ? "opacity-50" : ""
+            }`}
+            onPress={handleLogin}
+            disabled={loading}
+          >
+            <Text className="text-white text-center font-semibold text-base">
+              {loading ? "Signing in..." : "Sign In"}
+            </Text>
+          </TouchableOpacity>
+        </View>
 
-      <TouchableOpacity onPress={() => router.push("/(auth)/register")}>
-        <Text style={styles.linkText}>Don't have an account? Register</Text>
-      </TouchableOpacity>
-    </View>
+        {/* Footer */}
+        <View className="flex-row justify-center mt-8">
+          <Text className="text-gray-400">Don't have an account? </Text>
+          <TouchableOpacity onPress={() => router.push("/(auth)/register")}>
+            <Text className="text-blue-500 font-semibold">Sign Up</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </KeyboardAvoidingView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#1f2937",
-    padding: 20,
-    justifyContent: "center",
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: "bold",
-    color: "white",
-    textAlign: "center",
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: "#9ca3af",
-    textAlign: "center",
-    marginBottom: 40,
-  },
-  input: {
-    backgroundColor: "#374151",
-    color: "white",
-    padding: 16,
-    borderRadius: 8,
-    marginBottom: 16,
-    fontSize: 16,
-  },
-  button: {
-    backgroundColor: "#3b82f6",
-    padding: 16,
-    borderRadius: 8,
-    marginTop: 8,
-  },
-  buttonDisabled: {
-    opacity: 0.5,
-  },
-  buttonText: {
-    color: "white",
-    fontSize: 16,
-    fontWeight: "bold",
-    textAlign: "center",
-  },
-  linkText: {
-    color: "#3b82f6",
-    textAlign: "center",
-    marginTop: 20,
-    fontSize: 14,
-  },
-});

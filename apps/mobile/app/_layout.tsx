@@ -1,15 +1,17 @@
-import { Stack } from "expo-router";
-import { StatusBar } from "expo-status-bar";
-import "./global.css"; // Import your global CSS with Tailwind directives
+import 'react-native-url-polyfill/auto';
+import { useEffect } from 'react';
+import { Stack } from 'expo-router';
+import './global.css'; // Import global styles
+import { AuthProvider } from '@/context/auth-context';
 
 export default function RootLayout() {
   return (
-    <>
-      <StatusBar style="light" />
+    <AuthProvider>
       <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="login" options={{ headerShown: false }} />
+        <Stack.Screen name="index" />
+        <Stack.Screen name="(auth)" />
+        <Stack.Screen name="(tabs)" />
       </Stack>
-    </>
+    </AuthProvider>
   );
 }

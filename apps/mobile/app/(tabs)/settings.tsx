@@ -1,12 +1,21 @@
+import { useAuthContext } from "@/hooks/use-auth";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useState } from "react";
-import { ScrollView, Switch, Text, TouchableOpacity, View } from "react-native";
+import {
+  Pressable,
+  ScrollView,
+  Switch,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
 export default function SettingsScreen() {
   const [pushNotifications, setPushNotifications] = useState(true);
   const [soundEffects, setSoundEffects] = useState(true);
   const [hapticFeedback, setHapticFeedback] = useState(true);
   const [autoJoin, setAutoJoin] = useState(false);
+
 
   const SettingItem = ({
     icon,
@@ -211,9 +220,9 @@ export default function SettingsScreen() {
 
         <TouchableOpacity className="bg-red-500/10 border border-red-500/30 rounded-2xl p-4 mb-8 flex-row items-center justify-center">
           <Ionicons name="log-out-outline" size={20} color="#ef4444" />
-          <Text className="text-red-500 font-semibold ml-2 text-base">
-            Log Out
-          </Text>
+          <Pressable onPress={signOut}>
+            <Text className="text-red-400">Logout</Text>
+          </Pressable>
         </TouchableOpacity>
       </ScrollView>
     </View>

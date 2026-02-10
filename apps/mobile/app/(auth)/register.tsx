@@ -1,24 +1,38 @@
-import { supabase } from "@/services/supabase";
-import { router } from "expo-router";
-import { useState } from "react";
+import { useState } from 'react';
 import {
-    Alert,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
-} from "react-native";
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+} from 'react-native';
+import { router } from 'expo-router';
+import { supabase } from '@/services/supabase';
 
 export default function RegisterScreen() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [username, setUsername] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleRegister = async () => {
-    if (!email || !password || !username) {
-      Alert.alert("Error", "Please fill in all fields");
+    // Validation
+    if (!email || !password || !confirmPassword || !username) {
+      Alert.alert('Error', 'Please fill in all fields');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      Alert.alert('Error', 'Passwords do not match');
+      return;
+    }
+
+    if (password.length < 6) {
+      Alert.alert('Error', 'Password must be at least 6 characters');
       return;
     }
 
@@ -37,114 +51,128 @@ export default function RegisterScreen() {
       if (error) throw error;
 
       Alert.alert(
-        "Success",
-        "Account created! Please check your email to verify.",
+        'Success',
+        'Account created! Please check your email to verify your account.',
+        [
+          {
+            text: 'OK',
+            onPress: () => router.replace('/(auth)/login'),
+          },
+        ]
       );
-      router.replace("/(auth)/login");
     } catch (error: any) {
-      Alert.alert("Registration Failed", error.message);
+      Alert.alert('Registration Failed', error.message);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Create Account</Text>
-      <Text style={styles.subtitle}>Join Walkie-Talkie</Text>
-
-      <TextInput
-        style={styles.input}
-        placeholder="Username"
-        placeholderTextColor="#9ca3af"
-        value={username}
-        onChangeText={setUsername}
-        autoCapitalize="none"
-      />
-
-      <TextInput
-        style={styles.input}
-        placeholder="Email"
-        placeholderTextColor="#9ca3af"
-        value={email}
-        onChangeText={setEmail}
-        autoCapitalize="none"
-        keyboardType="email-address"
-      />
-
-      <TextInput
-        style={styles.input}
-        placeholder="Password"
-        placeholderTextColor="#9ca3af"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-      />
-
-      <TouchableOpacity
-        style={[styles.button, loading && styles.buttonDisabled]}
-        onPress={handleRegister}
-        disabled={loading}
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      className="flex-1 bg-gray-900"
+    >
+      <ScrollView
+        className="flex-1"
+        contentContainerStyle={{ flexGrow: 1 }}
+        keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.buttonText}>
-          {loading ? "Creating account..." : "Register"}
-        </Text>
-      </TouchableOpacity>
+        <View className="flex-1 justify-center px-6 py-12">
+          {/* Header */}
+          <View className="mb-10">
+            <Text className="text-4xl font-bold text-white mb-2">
+              Create Account
+            </Text>
+            <Text className="text-gray-400 text-base">
+              Sign up to get started
+            </Text>
+          </View>
 
-      <TouchableOpacity onPress={() => router.back()}>
-        <Text style={styles.linkText}>Already have an account? Login</Text>
-      </TouchableOpacity>
-    </View>
+          {/* Form */}
+          <View className="space-y-4">
+            <View>
+              <Text className="text-gray-300 mb-2 text-sm font-medium">
+                Username
+              </Text>
+              <TextInput
+                className="bg-gray-800 text-white px-4 py-4 rounded-xl text-base"
+                placeholder="johndoe"
+                placeholderTextColor="#6b7280"
+                value={username}
+                onChangeText={setUsername}
+                autoCapitalize="none"
+                editable={!loading}
+              />
+            </View>
+
+            <View>
+              <Text className="text-gray-300 mb-2 text-sm font-medium">
+                Email
+              </Text>
+              <TextInput
+                className="bg-gray-800 text-white px-4 py-4 rounded-xl text-base"
+                placeholder="your@email.com"
+                placeholderTextColor="#6b7280"
+                value={email}
+                onChangeText={setEmail}
+                autoCapitalize="none"
+                keyboardType="email-address"
+                editable={!loading}
+              />
+            </View>
+
+            <View>
+              <Text className="text-gray-300 mb-2 text-sm font-medium">
+                Password
+              </Text>
+              <TextInput
+                className="bg-gray-800 text-white px-4 py-4 rounded-xl text-base"
+                placeholder="Min. 6 characters"
+                placeholderTextColor="#6b7280"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+                editable={!loading}
+              />
+            </View>
+
+            <View>
+              <Text className="text-gray-300 mb-2 text-sm font-medium">
+                Confirm Password
+              </Text>
+              <TextInput
+                className="bg-gray-800 text-white px-4 py-4 rounded-xl text-base"
+                placeholder="Re-enter password"
+                placeholderTextColor="#6b7280"
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                secureTextEntry
+                editable={!loading}
+              />
+            </View>
+
+            <TouchableOpacity
+              className={`bg-blue-600 py-4 rounded-xl mt-6 ${
+                loading ? 'opacity-50' : ''
+              }`}
+              onPress={handleRegister}
+              disabled={loading}
+            >
+              <Text className="text-white text-center font-semibold text-base">
+                {loading ? 'Creating account...' : 'Create Account'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Footer */}
+          <View className="flex-row justify-center mt-8">
+            <Text className="text-gray-400">Already have an account? </Text>
+            <TouchableOpacity onPress={() => router.back()}>
+              <Text className="text-blue-500 font-semibold">Sign In</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#1f2937",
-    padding: 20,
-    justifyContent: "center",
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: "bold",
-    color: "white",
-    textAlign: "center",
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: "#9ca3af",
-    textAlign: "center",
-    marginBottom: 40,
-  },
-  input: {
-    backgroundColor: "#374151",
-    color: "white",
-    padding: 16,
-    borderRadius: 8,
-    marginBottom: 16,
-    fontSize: 16,
-  },
-  button: {
-    backgroundColor: "#3b82f6",
-    padding: 16,
-    borderRadius: 8,
-    marginTop: 8,
-  },
-  buttonDisabled: {
-    opacity: 0.5,
-  },
-  buttonText: {
-    color: "white",
-    fontSize: 16,
-    fontWeight: "bold",
-    textAlign: "center",
-  },
-  linkText: {
-    color: "#3b82f6",
-    textAlign: "center",
-    marginTop: 20,
-    fontSize: 14,
-  },
-});
