@@ -5,6 +5,8 @@ import { env } from "./config/env";
 import databasePlugin from "./plugins/database";
 import { authRoutes } from "./routes/auth";
 import { userRoutes } from "./routes/users";
+import { websocketRoutes } from "./routes/websocket";
+import apiRoutes from "./routes/api";
 
 const fastify = Fastify({
   logger: {
@@ -20,19 +22,23 @@ async function start() {
     });
 
     await fastify.register(websocket);
+
     await fastify.register(databasePlugin);
 
     // Register routes
     await fastify.register(authRoutes);
+    await fastify.register(apiRoutes)
     await fastify.register(userRoutes);
+    await fastify.register(websocketRoutes);
 
     // Start server
     await fastify.listen({
       port: parseInt(env.PORT),
-      host: env.HOST,
+      host: "0.0.0.0",
     });
 
-    console.log('check logs')
+    console.log(`✅ Server running on http://0.0.0.0:${env.PORT}`);
+    console.log(`✅ WebSocket available at ws://192.168.1.10:${env.PORT}/ws`);
   } catch (error) {
     fastify.log.error(error);
     process.exit(1);

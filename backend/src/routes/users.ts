@@ -1,7 +1,7 @@
 import { FastifyInstance } from "fastify";
 import { verifyAuth } from "../middleware/verifyAuth";
 import { z } from "zod";
-import { UserService } from "../services/user-service";
+import { UserService } from "../services/user.service";
 
 const updateProfileSchema = z.object({
   username: z.string().min(3).max(20).optional(),

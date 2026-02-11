@@ -1,7 +1,7 @@
 import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { supabase, supabaseAdmin } from "../config/supabase";
-import { UserService } from "../services/user-service";
+import { UserService } from "../services/user.service";
 
 const registerSchema = z.object({
   email: z.string().email(),
