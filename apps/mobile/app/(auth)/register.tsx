@@ -1,49 +1,47 @@
-import { useState } from 'react';
+import { useState } from "react";
 import {
   View,
   Text,
-  TextInput,
   TouchableOpacity,
   Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-} from 'react-native';
-import { router } from 'expo-router';
-import { supabase } from '@/services/supabase';
+  ActivityIndicator,
+} from "react-native";
+import { router } from "expo-router";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { supabase } from "@/services/supabase";
+import { RegisterFormData, registerSchema } from "@/schema/authSchema";
+import { ControlledInput } from "@/components/ui/ControlledInput";
 
 export default function RegisterScreen() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [username, setUsername] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleRegister = async () => {
-    // Validation
-    if (!email || !password || !confirmPassword || !username) {
-      Alert.alert('Error', 'Please fill in all fields');
-      return;
-    }
+  const {
+    control,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<RegisterFormData>({
+    resolver: zodResolver(registerSchema),
+    defaultValues: {
+      username: "",
+      email: "",
+      password: "",
+      confirmPassword: "",
+    },
+  });
 
-    if (password !== confirmPassword) {
-      Alert.alert('Error', 'Passwords do not match');
-      return;
-    }
-
-    if (password.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters');
-      return;
-    }
-
-    setLoading(true);
+  const onSubmit = async (data: RegisterFormData) => {
+    setIsSubmitting(true);
     try {
       const { error } = await supabase.auth.signUp({
-        email,
-        password,
+        email: data.email,
+        password: data.password,
         options: {
           data: {
-            username,
+            username: data.username,
           },
         },
       });
@@ -51,25 +49,25 @@ export default function RegisterScreen() {
       if (error) throw error;
 
       Alert.alert(
-        'Success',
-        'Account created! Please check your email to verify your account.',
+        "Success",
+        "Account created! Please check your email to verify your account.",
         [
           {
-            text: 'OK',
-            onPress: () => router.replace('/(auth)/login'),
+            text: "OK",
+            onPress: () => router.replace("/(auth)/login"),
           },
-        ]
+        ],
       );
     } catch (error: any) {
-      Alert.alert('Registration Failed', error.message);
+      Alert.alert("Registration Failed", error.message);
     } finally {
-      setLoading(false);
+      setIsSubmitting(false);
     }
   };
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
       className="flex-1 bg-gray-900"
     >
       <ScrollView
@@ -90,77 +88,65 @@ export default function RegisterScreen() {
 
           {/* Form */}
           <View className="space-y-4">
-            <View>
-              <Text className="text-gray-300 mb-2 text-sm font-medium">
-                Username
-              </Text>
-              <TextInput
-                className="bg-gray-800 text-white px-4 py-4 rounded-xl text-base"
-                placeholder="johndoe"
-                placeholderTextColor="#6b7280"
-                value={username}
-                onChangeText={setUsername}
-                autoCapitalize="none"
-                editable={!loading}
-              />
-            </View>
+            <ControlledInput
+              control={control}
+              name="username"
+              label="Username"
+              placeholder="johndoe"
+              placeholderTextColor="#6b7280"
+              autoCapitalize="none"
+              error={errors.username?.message}
+              editable={!isSubmitting}
+            />
 
-            <View>
-              <Text className="text-gray-300 mb-2 text-sm font-medium">
-                Email
-              </Text>
-              <TextInput
-                className="bg-gray-800 text-white px-4 py-4 rounded-xl text-base"
-                placeholder="your@email.com"
-                placeholderTextColor="#6b7280"
-                value={email}
-                onChangeText={setEmail}
-                autoCapitalize="none"
-                keyboardType="email-address"
-                editable={!loading}
-              />
-            </View>
+            <ControlledInput
+              control={control}
+              name="email"
+              label="Email"
+              placeholder="your@email.com"
+              placeholderTextColor="#6b7280"
+              autoCapitalize="none"
+              keyboardType="email-address"
+              error={errors.email?.message}
+              editable={!isSubmitting}
+            />
 
-            <View>
-              <Text className="text-gray-300 mb-2 text-sm font-medium">
-                Password
-              </Text>
-              <TextInput
-                className="bg-gray-800 text-white px-4 py-4 rounded-xl text-base"
-                placeholder="Min. 6 characters"
-                placeholderTextColor="#6b7280"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-                editable={!loading}
-              />
-            </View>
+            <ControlledInput
+              control={control}
+              name="password"
+              label="Password"
+              placeholder="Min. 6 characters"
+              placeholderTextColor="#6b7280"
+              secureTextEntry
+              error={errors.password?.message}
+              editable={!isSubmitting}
+            />
 
-            <View>
-              <Text className="text-gray-300 mb-2 text-sm font-medium">
-                Confirm Password
-              </Text>
-              <TextInput
-                className="bg-gray-800 text-white px-4 py-4 rounded-xl text-base"
-                placeholder="Re-enter password"
-                placeholderTextColor="#6b7280"
-                value={confirmPassword}
-                onChangeText={setConfirmPassword}
-                secureTextEntry
-                editable={!loading}
-              />
-            </View>
+            <ControlledInput
+              control={control}
+              name="confirmPassword"
+              label="Confirm Password"
+              placeholder="Re-enter password"
+              placeholderTextColor="#6b7280"
+              secureTextEntry
+              error={errors.confirmPassword?.message}
+              editable={!isSubmitting}
+            />
 
             <TouchableOpacity
               className={`bg-blue-600 py-4 rounded-xl mt-6 ${
-                loading ? 'opacity-50' : ''
+                isSubmitting ? "opacity-50" : ""
               }`}
-              onPress={handleRegister}
-              disabled={loading}
+              onPress={handleSubmit(onSubmit)}
+              disabled={isSubmitting}
             >
-              <Text className="text-white text-center font-semibold text-base">
-                {loading ? 'Creating account...' : 'Create Account'}
-              </Text>
+              {isSubmitting ? (
+                <ActivityIndicator color="white" />
+              ) : (
+                <Text className="text-white text-center font-semibold text-base">
+                  Create Account
+                </Text>
+              )}
             </TouchableOpacity>
           </View>
 

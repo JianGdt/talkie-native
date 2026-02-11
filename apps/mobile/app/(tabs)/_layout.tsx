@@ -1,5 +1,5 @@
-import { Tabs } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { Tabs } from "expo-router";
+import { AntDesign, Ionicons } from "@expo/vector-icons";
 
 export default function TabsLayout() {
   return (
@@ -7,28 +7,48 @@ export default function TabsLayout() {
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: '#1f2937',
-          borderTopColor: '#374151',
+          display: "flex",
+          justifyContent: "center",
+          backgroundColor: "#1f2937",
+          borderTopColor: "#374151",
         },
-        tabBarActiveTintColor: '#3b82f6',
-        tabBarInactiveTintColor: '#9ca3af',
+        tabBarActiveTintColor: "#3b82f6",
+        tabBarInactiveTintColor: "#9ca3af",
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Home',
+          title: "Home",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="home" size={size} color={color} />
           ),
         }}
       />
       <Tabs.Screen
-        name="profile"
+        name="messages"
         options={{
-          title: 'Profile',
+          title: "Messages",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="person" size={size} color={color} />
+            <AntDesign name="message" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="channels"
+        options={{
+          title: "Channels",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="people" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="settings"
+        options={{
+          title: "Settings",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="settings-outline" size={size} color={color} />
           ),
         }}
       />

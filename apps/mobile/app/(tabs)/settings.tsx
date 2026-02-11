@@ -1,6 +1,8 @@
-import { useAuthContext } from "@/hooks/use-auth";
+import { SettingItem } from "@/components/SettingItems";
+import { useAuth } from "@/hooks/useAuth";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useState } from "react";
+import { ActivityIndicator, Alert } from "react-native";
 import {
   Pressable,
   ScrollView,
@@ -15,43 +17,21 @@ export default function SettingsScreen() {
   const [soundEffects, setSoundEffects] = useState(true);
   const [hapticFeedback, setHapticFeedback] = useState(true);
   const [autoJoin, setAutoJoin] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
 
+  const { signOut } = useAuth();
 
-  const SettingItem = ({
-    icon,
-    title,
-    subtitle,
-    onPress,
-    rightElement,
-    showChevron = true,
-  }: {
-    icon: string;
-    title: string;
-    subtitle?: string;
-    onPress?: () => void;
-    rightElement?: React.ReactNode;
-    showChevron?: boolean;
-  }) => (
-    <TouchableOpacity
-      onPress={onPress}
-      className="bg-slate-900 rounded-2xl p-4 mb-3 flex-row items-center border border-slate-800"
-      disabled={!onPress && !rightElement}
-    >
-      <View className="w-10 h-10 bg-slate-800 rounded-xl items-center justify-center">
-        <Ionicons name={icon as any} size={20} color="#3b82f6" />
-      </View>
-      <View className="flex-1 ml-4">
-        <Text className="text-white font-semibold text-base">{title}</Text>
-        {subtitle && (
-          <Text className="text-slate-400 text-sm mt-1">{subtitle}</Text>
-        )}
-      </View>
-      {rightElement ||
-        (showChevron && (
-          <Ionicons name="chevron-forward" size={20} color="#64748b" />
-        ))}
-    </TouchableOpacity>
-  );
+  const handleSignOut = async () => {
+    if (isSigningOut) return;
+    setIsSigningOut(true);
+    try {
+      await signOut();
+    } catch (error) {
+      Alert.alert("Error", "Failed to sign out. Please try again.");
+    } finally {
+      setIsSigningOut(false);
+    }
+  };
 
   return (
     <View className="flex-1 bg-slate-950">
@@ -61,8 +41,7 @@ export default function SettingsScreen() {
       </View>
 
       <ScrollView className="flex-1" contentContainerClassName="px-6 py-6">
-        {/* Profile Section */}
-        <View className="bg-gradient-to-br from-blue-500 to-purple-600 rounded-3xl p-6 mb-6 border border-blue-400/20">
+        <View className=" from-blue-500 to-purple-600 rounded-3xl p-6 mb-6 border border-blue-400/20">
           <View className="flex-row items-center mb-4">
             <View className="w-20 h-20 bg-white rounded-2xl items-center justify-center">
               <Text className="text-blue-600 text-2xl font-bold">JD</Text>
@@ -78,7 +57,6 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Account Section */}
         <View className="mb-6">
           <Text className="text-slate-500 text-xs font-semibold uppercase mb-3 ml-1">
             Account
@@ -218,11 +196,22 @@ export default function SettingsScreen() {
           />
         </View>
 
-        <TouchableOpacity className="bg-red-500/10 border border-red-500/30 rounded-2xl p-4 mb-8 flex-row items-center justify-center">
-          <Ionicons name="log-out-outline" size={20} color="#ef4444" />
-          <Pressable onPress={signOut}>
-            <Text className="text-red-400">Logout</Text>
-          </Pressable>
+        <TouchableOpacity
+          className={`py-4 rounded-xl border-2 ${
+            isSigningOut
+              ? "bg-red-600 border-red-600 opacity-50"
+              : "bg-transparent border-red-600 active:bg-red-600/10"
+          }`}
+          onPress={handleSignOut}
+          disabled={isSigningOut}
+        >
+          {isSigningOut ? (
+            <ActivityIndicator color="#ef4444" />
+          ) : (
+            <Text className="text-red-500 text-center font-semibold text-base">
+              Sign Out
+            </Text>
+          )}
         </TouchableOpacity>
       </ScrollView>
     </View>
