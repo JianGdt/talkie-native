@@ -69,9 +69,11 @@ async function start() {
       return { status: "ok", timestamp: new Date().toISOString() };
     });
 
+    const port = parseInt(process.env.PORT || "3001", 10);
+
     // Start server
     await fastify.listen({
-      port: parseInt(env.PORT),
+      port: port,
       host: "0.0.0.0",
     });
 
