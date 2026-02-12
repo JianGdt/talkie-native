@@ -26,15 +26,13 @@ const getWebSocketURL = (token: string, userId: string, username: string) => {
     username,
   });
 
-  const baseUrl = process.env.EXPO_PUBLIC_WS_URL || "ws://localhost:3001/ws";
+  let baseUrl = process.env.EXPO_PUBLIC_WS_URL || "ws://localhost:3001/ws";
+
   if (Platform.OS === "web") {
-    baseUrl;
-  } else if (Platform.OS === "android") {
-    baseUrl;
-  } else {
-    baseUrl;
+    baseUrl = process.env.EXPO_PUBLIC_WS_URL || "ws://localhost:3001/ws";
   }
 
+  console.log("🔌 WebSocket URL:", baseUrl);
   return `${baseUrl}?${params.toString()}`;
 };
 
