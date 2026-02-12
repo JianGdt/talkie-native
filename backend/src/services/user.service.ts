@@ -1,5 +1,5 @@
 import { Pool } from "pg";
-import { UserProfile } from "../@types";
+import { UserProfile } from "../@types/websocket";
 
 export class UserService {
   constructor(private db: Pool) {}

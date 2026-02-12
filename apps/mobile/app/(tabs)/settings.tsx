@@ -19,7 +19,7 @@ export default function SettingsScreen() {
   const [autoJoin, setAutoJoin] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
 
-  const { signOut } = useAuth();
+  const { signOut, user } = useAuth();
 
   const handleSignOut = async () => {
     if (isSigningOut) return;
@@ -33,6 +33,7 @@ export default function SettingsScreen() {
     }
   };
 
+  console.log("USER", user);
   return (
     <View className="flex-1 bg-slate-950">
       {/* Header */}
@@ -44,11 +45,15 @@ export default function SettingsScreen() {
         <View className=" from-blue-500 to-purple-600 rounded-3xl p-6 mb-6 border border-blue-400/20">
           <View className="flex-row items-center mb-4">
             <View className="w-20 h-20 bg-white rounded-2xl items-center justify-center">
-              <Text className="text-blue-600 text-2xl font-bold">JD</Text>
+              <Text className="text-blue-600 text-2xl font-bold">
+                {user?.user_metadata?.username}
+              </Text>
             </View>
             <View className="flex-1 ml-4">
-              <Text className="text-white text-2xl font-bold">John Doe</Text>
-              <Text className="text-blue-100 text-sm mt-1">@johndoe</Text>
+              <Text className="text-white text-2xl font-bold">
+                {user?.user_metadata?.username}
+              </Text>
+              <Text className="text-blue-100 text-sm mt-1">{user?.email}</Text>
             </View>
           </View>
           <TouchableOpacity className="bg-white/20 backdrop-blur rounded-xl py-3 px-4 flex-row items-center justify-center border border-white/30">

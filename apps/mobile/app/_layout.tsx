@@ -5,6 +5,11 @@ import "./global.css";
 import { AuthProvider } from "@/context/auth-context";
 import { useWebSocketStore } from "@/store/useWebSocketStore";
 import { useAuth } from "@/hooks/useAuth";
+import { Poppins_600SemiBold, useFonts } from "@expo-google-fonts/poppins";
+
+import * as SplashScreen from "expo-splash-screen";
+
+SplashScreen.preventAutoHideAsync();
 
 function RootLayoutNav() {
   const { session, loading } = useAuth();
@@ -47,7 +52,6 @@ function RootLayoutNav() {
 }
 
 export default function RootLayout() {
-  console.log("🔵 RootLayout render");
   return (
     <AuthProvider>
       <RootLayoutNav />

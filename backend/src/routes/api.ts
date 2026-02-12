@@ -70,7 +70,6 @@ export default async function apiRoutes(fastify: FastifyInstance) {
         id: channel.id,
         name: channel.name,
         description: channel.description,
-        createdAt: channel.createdAt,
       },
     };
   });

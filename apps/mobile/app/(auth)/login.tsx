@@ -54,10 +54,12 @@ export default function LoginScreen() {
       className="flex-1 bg-gray-900"
     >
       <View className="flex-1 justify-center px-6">
-        {/* Header */}
         <View className="mb-10">
-          <Text className="text-4xl font-bold text-white mb-2">
-            Welcome Back
+          <Text
+            style={{ fontFamily: "Poppins_600SemiBold" }}
+            className="text-6xl text-white mb-2"
+          >
+            Wave
           </Text>
           <Text className="text-gray-400 text-base">Sign in to continue</Text>
         </View>

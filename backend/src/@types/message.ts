@@ -1,3 +1,5 @@
+import { User } from "./websocket";
+
 export enum MessageType {
   AUTH = "auth",
   AUTH_SUCCESS = "auth_success",
@@ -170,8 +172,10 @@ export interface Channel {
   id: string;
   name: string;
   description?: string;
-  activeUsers: string[];
-  currentSpeaker: string | null;
+  activeUsers: Set<string>; // Changed from string[] to Set<string>
+  currentSpeaker?: string | null;
+  participants: Map<string, User>; // Changed from any to Map<string, User>
+  createdAt: Date;
 }
 
 export interface ChannelInfo {

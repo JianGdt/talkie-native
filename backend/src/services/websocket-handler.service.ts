@@ -14,6 +14,7 @@ import {
 } from "../@types/message";
 import { connectionManager } from "./connection-manager.service";
 import channelManager from "./channel-manager.service";
+import { User } from "../@types/websocket";
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
@@ -232,13 +233,24 @@ class WebSocketHandler {
       this.handleLeaveChannel(userId, { channelId: connection.currentChannel });
     }
 
-    const success = channelManager.addUserToChannel(channelId, user);
+    // Create a proper User object from the payload
+    const userObject: User = {
+      id: user.userId,
+      email: "", // You might want to store this in connection or fetch from DB
+      username: user.username,
+      created_at: new Date(),
+      updated_at: new Date(),
+    };
+
+    const success = channelManager.addUserToChannel(channelId, userObject);
 
     if (!success) {
       this.sendError(connection.ws, "Channel not found");
       return;
     }
+
     connectionManager.updateConnectionChannel(userId, channelId);
+
     this.broadcastToChannel(channelId, {
       type: MessageType.USER_JOINED,
       payload: { channelId, user },

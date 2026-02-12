@@ -1,4 +1,5 @@
 import { Channel } from "../@types/message";
+import { User } from "../@types/websocket";
 
 /**
  * Channel Manager
