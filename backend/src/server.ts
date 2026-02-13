@@ -16,7 +16,6 @@ const fastify = Fastify({
 
 async function start() {
   try {
-    // CORS configuration - must be registered BEFORE websocket
     await fastify.register(cors, {
       origin: (origin, cb) => {
         const allowedOrigins = [
@@ -43,14 +42,9 @@ async function start() {
     // WebSocket configuration
     await fastify.register(websocket, {
       options: {
-        // Increase max payload size if needed
         maxPayload: 1048576, // 1MB
-        // Client tracking
         clientTracking: true,
-        // Verify client
         verifyClient: (info, next) => {
-          // You can add custom verification logic here
-          // For now, accept all connections (auth will happen after connection)
           next(true);
         },
       },
@@ -64,10 +58,7 @@ async function start() {
     await fastify.register(userRoutes);
     await fastify.register(websocketRoutes);
 
-    // Health check route
-    fastify.get("/health", async (request, reply) => {
-      return { status: "ok", timestamp: new Date().toISOString() };
-    });
+    // REMOVED duplicate /health route
 
     const port = parseInt(process.env.PORT || "3001", 10);
 
@@ -77,9 +68,8 @@ async function start() {
       host: "0.0.0.0",
     });
 
-    console.log(`✅ Server running on http://0.0.0.0:${env.PORT}`);
-    console.log(`✅ WebSocket available at ws://0.0.0.0:${env.PORT}/ws`);
-    console.log(`📋 Allowed origins:`, env.ALLOWED_ORIGINS);
+    console.log(`✅ Server running on http://0.0.0.0:${port}`);
+    console.log(`✅ WebSocket available at ws://0.0.0.0:${port}/ws`);
   } catch (error) {
     fastify.log.error(error);
     process.exit(1);
