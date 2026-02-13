@@ -7,7 +7,7 @@
     "icon": "./assets/images/icon.png",
     "scheme": "mobilefe",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.anonymous.mobilefe",
@@ -22,12 +22,8 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false,
       "package": "com.anonymous.mobilefe",
-      "permissions": [
-        "android.permission.RECORD_AUDIO"
-      ]
+      "permissions": ["android.permission.RECORD_AUDIO"]
     },
     "web": {
       "output": "static",
@@ -56,7 +52,11 @@
       "reactCompiler": true
     },
     "extra": {
-      "wsUrl": "ws://192.168.1.10:3001/ws"
+      "wsUrl": "wss://wave-api-5k28.onrender.com/ws",
+      "router": {},
+      "eas": {
+        "projectId": "ca5fd015-4f97-4035-9d1a-81e7d37a28a0"
+      }
     }
   }
 }
