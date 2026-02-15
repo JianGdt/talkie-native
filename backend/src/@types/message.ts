@@ -13,6 +13,7 @@ export enum MessageType {
   // Channel Management
   JOIN_CHANNEL = "join_channel",
   LEAVE_CHANNEL = "leave_channel",
+  CHANNEL_JOINED = "channel_joined",
   CHANNEL_UPDATE = "channel_update",
 
   // User Events
