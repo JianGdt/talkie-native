@@ -1,5 +1,6 @@
 import { FastifyInstance, FastifyRequest } from "fastify";
 import { WebSocket } from "ws";
+import { Pool } from "pg";
 import { createClient } from "@supabase/supabase-js";
 
 import {
@@ -15,6 +16,9 @@ import {
 import { connectionManager } from "./connection-manager.service";
 import channelManager from "./channel-manager.service";
 import { User } from "../@types/websocket";
+import { ChannelService } from "./channel.service";
+import { ConversationService } from "./conversation.service";
+import { ActiveUserService } from "./active.service";
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
@@ -23,10 +27,18 @@ const supabase = createClient(
 
 class WebSocketHandler {
   private fastify: FastifyInstance | null = null;
+  private db: Pool | null = null;
+  private channelService: ChannelService | null = null;
+  private conversationService: ConversationService | null = null;
+  private activeUserService: ActiveUserService | null = null;
 
   initialize(fastify: FastifyInstance) {
     this.fastify = fastify;
-    console.log("initialized from backend");
+    this.db = fastify.db;
+    this.channelService = new ChannelService(this.db);
+    this.conversationService = new ConversationService(this.db);
+    this.activeUserService = new ActiveUserService(this.db);
+    console.log("✅ WebSocket handler initialized with database");
   }
 
   async handleConnection(ws: WebSocket, req: FastifyRequest) {
@@ -91,8 +103,6 @@ class WebSocketHandler {
   }
 
   private async authenticateUser(userId: string, token: string, ws: any) {
-    console.log(`auth user ${userId}`);
-
     try {
       const {
         data: { user },
@@ -125,6 +135,8 @@ class WebSocketHandler {
         return;
       }
 
+      await this.activeUserService!.setUserOnline(userId);
+
       connectionManager.markAuthenticated(userId, true);
       const connection = connectionManager.getConnection(userId);
 
@@ -138,7 +150,8 @@ class WebSocketHandler {
         timestamp: Date.now(),
       });
 
-      console.log(`✅ User ${userId} authenticated successfully`);
+      this.broadcastPresenceUpdate(userId, "online");
+
     } catch (error) {
       console.error("❌ Authentication error:", error);
       this.sendMessage(ws, {
@@ -152,6 +165,8 @@ class WebSocketHandler {
       setTimeout(() => ws.close(1011, "Internal error"), 1000);
     }
   }
+
+  // MESSAGES, WEBSOCKET CYCLE
 
   private routeMessage(
     userId: string,
@@ -172,8 +187,6 @@ class WebSocketHandler {
       this.sendError(ws, "Not authenticated");
       return;
     }
-
-    // COMMUNICATE OR MESSAGE CYCLE
 
     switch (message.type) {
       case MessageType.START_TRANSMISSION:
@@ -205,99 +218,210 @@ class WebSocketHandler {
     }
   }
 
-  private handleTextMessage(userId: string, payload: any) {
+  private async handleTextMessage(userId: string, payload: any) {
     const connection = connectionManager.getConnection(userId);
-    if (!connection?.currentChannel) {
-      this.sendError(connection!.ws, "Not in a channel");
-      return;
-    }
+    if (!connection) return;
+    try {
+      let messageId;
+      if (payload.channelId) {
+        if (!connection.currentChannel) {
+          this.sendError(connection.ws, "Not in a channel");
+          return;
+        }
 
-    this.broadcastToChannel(connection.currentChannel, {
-      type: MessageType.MESSAGE,
-      userId,
-      username: connection.username,
-      payload: payload,
-      timestamp: Date.now(),
-    });
+        const savedMessage = await this.channelService!.saveMessage(
+          payload.channelId,
+          userId,
+          payload.content,
+        );
+
+        messageId = savedMessage.id;
+
+        this.broadcastToChannel(connection.currentChannel, {
+          type: MessageType.MESSAGE,
+          userId,
+          username: connection.username,
+          payload: {
+            ...payload,
+            messageId,
+            timestamp: savedMessage.timestamp,
+          },
+          timestamp: savedMessage.timestamp,
+        });
+      } else if (payload.conversationId) {
+        const savedMessage = await this.conversationService!.saveMessage(
+          payload.conversationId,
+          userId,
+          payload.content,
+        );
+
+        messageId = savedMessage.id;
+
+        const participants = await this.conversationService!.getParticipants(
+          payload.conversationId,
+        );
+
+        participants.forEach((participant) => {
+          const participantConn = connectionManager.getConnection(
+            participant.id,
+          );
+          if (participantConn) {
+            this.sendMessage(participantConn.ws, {
+              type: MessageType.MESSAGE,
+              userId,
+              username: connection.username,
+              payload: {
+                ...payload,
+                timestamp: savedMessage.timestamp,
+              },
+              timestamp: savedMessage.timestamp,
+            });
+          }
+        });
+      }
+    } catch (error) {
+      console.error("❌ Error saving message:", error);
+      this.sendError(connection.ws, "Failed to send message");
+    }
   }
 
-  private handleJoinChannel(userId: string, payload: JoinChannelPayload) {
+  private async handleJoinChannel(userId: string, payload: JoinChannelPayload) {
     const { channelId, user } = payload;
     const connection = connectionManager.getConnection(userId);
 
     if (!connection) return;
 
-    console.log(`👤 ${user.username} joining channel ${channelId}`);
+    console.log(`👤 ${user.username} attempting to join channel ${channelId}`);
 
-    if (connection.currentChannel) {
-      this.handleLeaveChannel(userId, { channelId: connection.currentChannel });
+    try {
+      if (connection.currentChannel) {
+        await this.handleLeaveChannel(userId, {
+          channelId: connection.currentChannel,
+        });
+      }
+
+      const channel = channelManager.getChannel(channelId);
+
+      if (!channel) {
+        console.error(`❌ Channel ${channelId} not found in channel manager`);
+        console.log(
+          "📋 Available channels:",
+          channelManager
+            .getAllChannels()
+            .map((c) => ({ id: c.id, name: c.name })),
+        );
+        this.sendError(connection.ws, "Channel not found");
+        return;
+      }
+
+      try {
+        await this.channelService!.addMember(channelId, userId);
+        console.log(`✅ Successfully saved to database`);
+      } catch (dbError) {
+        console.error(`❌ DATABASE ERROR when adding member:`, dbError);
+        this.sendError(
+          connection.ws,
+          "Failed to join channel - database error",
+        );
+        return;
+      }
+
+      const userObject: User = {
+        id: user.userId,
+        email: "",
+        username: user.username,
+        created_at: new Date(),
+        updated_at: new Date(),
+      };
+
+      const success = channelManager.addUserToChannel(channelId, userObject);
+
+      if (!success) {
+        console.error(`❌ Failed to add to channel manager`);
+        this.sendError(connection.ws, "Failed to join channel");
+        return;
+      }
+
+      connectionManager.updateConnectionChannel(userId, channelId);
+
+      this.sendMessage(connection.ws, {
+        type: MessageType.CHANNEL_JOINED,
+        payload: {
+          channelId,
+          channelName: channel.name,
+          success: true,
+        },
+        timestamp: Date.now(),
+      });
+
+      this.broadcastToChannel(
+        channelId,
+        {
+          type: MessageType.USER_JOINED,
+          payload: { channelId, user },
+          timestamp: Date.now(),
+        },
+        userId,
+      );
+
+      const channelInfo = channelManager.getChannelInfo(channelId);
+      this.broadcastToChannel(channelId, {
+        type: MessageType.CHANNEL_UPDATE,
+        payload: channelInfo,
+        timestamp: Date.now(),
+      });
+
+      console.log(
+        `✅ ${user.username} successfully joined ${channel.name} (in-memory + database)`,
+      );
+    } catch (error) {
+      console.error("❌ Error joining channel:", error);
+      this.sendError(connection.ws, "Failed to join channel");
     }
-
-    // Create a proper User object from the payload
-    const userObject: User = {
-      id: user.userId,
-      email: "", // You might want to store this in connection or fetch from DB
-      username: user.username,
-      created_at: new Date(),
-      updated_at: new Date(),
-    };
-
-    const success = channelManager.addUserToChannel(channelId, userObject);
-
-    if (!success) {
-      this.sendError(connection.ws, "Channel not found");
-      return;
-    }
-
-    connectionManager.updateConnectionChannel(userId, channelId);
-
-    this.broadcastToChannel(channelId, {
-      type: MessageType.USER_JOINED,
-      payload: { channelId, user },
-      timestamp: Date.now(),
-    });
-
-    const channelInfo = channelManager.getChannelInfo(channelId);
-    this.broadcastToChannel(channelId, {
-      type: MessageType.CHANNEL_UPDATE,
-      payload: channelInfo,
-      timestamp: Date.now(),
-    });
   }
 
-  private handleLeaveChannel(userId: string, payload: LeaveChannelPayload) {
+  private async handleLeaveChannel(
+    userId: string,
+    payload: LeaveChannelPayload,
+  ) {
     const { channelId } = payload;
     const connection = connectionManager.getConnection(userId);
 
     if (!connection) return;
 
-    const transmission = connectionManager.getActiveTransmission(channelId);
-    if (transmission && transmission.userId === userId) {
-      connectionManager.endTransmission(channelId, userId);
+    try {
+      const transmission = connectionManager.getActiveTransmission(channelId);
+      if (transmission && transmission.userId === userId) {
+        connectionManager.endTransmission(channelId, userId);
+
+        this.broadcastToChannel(channelId, {
+          type: MessageType.TRANSMISSION_ENDED,
+          payload: { channelId, userId },
+          timestamp: Date.now(),
+        });
+      }
+
+      await this.channelService!.removeMember(channelId, userId);
+
+      channelManager.removeUserFromChannel(channelId, userId);
+
+      connectionManager.updateConnectionChannel(userId, undefined);
 
       this.broadcastToChannel(channelId, {
-        type: MessageType.TRANSMISSION_ENDED,
+        type: MessageType.USER_LEFT,
         payload: { channelId, userId },
         timestamp: Date.now(),
       });
+
+      const channelInfo = channelManager.getChannelInfo(channelId);
+      this.broadcastToChannel(channelId, {
+        type: MessageType.CHANNEL_UPDATE,
+        payload: channelInfo,
+        timestamp: Date.now(),
+      });
+    } catch (error) {
+      console.error("❌ Error leaving channel:", error);
     }
-
-    channelManager.removeUserFromChannel(channelId, userId);
-    connectionManager.updateConnectionChannel(userId, undefined);
-
-    this.broadcastToChannel(channelId, {
-      type: MessageType.USER_LEFT,
-      payload: { channelId, userId },
-      timestamp: Date.now(),
-    });
-
-    // Send updated channel info
-    const channelInfo = channelManager.getChannelInfo(channelId);
-    this.broadcastToChannel(channelId, {
-      type: MessageType.CHANNEL_UPDATE,
-      payload: channelInfo,
-      timestamp: Date.now(),
-    });
   }
 
   private handleStartTransmission(
@@ -353,7 +477,6 @@ class WebSocketHandler {
 
     const connection = connectionManager.getConnection(userId);
 
-    // Broadcast to all EXCEPT sender
     this.broadcastToChannel(
       channelId,
       {
@@ -387,17 +510,25 @@ class WebSocketHandler {
     }
   }
 
-  private handleDisconnect(userId: string) {
+  private async handleDisconnect(userId: string) {
     const connection = connectionManager.getConnection(userId);
 
     console.log(`\n=== USER DISCONNECTED ===`);
     console.log(`User: ${connection?.username} (${userId})`);
 
     if (connection?.currentChannel) {
-      this.handleLeaveChannel(userId, { channelId: connection.currentChannel });
+      await this.handleLeaveChannel(userId, {
+        channelId: connection.currentChannel,
+      });
     }
 
+    await this.activeUserService!.setUserOffline(userId);
+
+    this.broadcastPresenceUpdate(userId, "offline");
+
     connectionManager.removeConnection(userId);
+
+    console.log(`👋 User ${userId} marked as offline`);
   }
 
   private broadcastToChannel(
@@ -411,6 +542,24 @@ class WebSocketHandler {
       if (excludeUserId && conn.userId === excludeUserId) return;
       this.sendMessage(conn.ws, message);
     });
+  }
+
+  broadcastPresenceUpdate(userId: string, status: string) {
+    const message: WebSocketMessage = {
+      type: "presence_update" as any,
+      payload: {
+        userId,
+        status,
+      },
+      timestamp: Date.now(),
+    };
+
+    const allConnections = connectionManager.getAllConnections();
+    allConnections.forEach((conn) => {
+      this.sendMessage(conn.ws, message);
+    });
+
+    console.log(`📢 Broadcasted: User ${userId} is now ${status}`);
   }
 
   private sendMessage(ws: any, message: WebSocketMessage) {
@@ -434,15 +583,19 @@ class WebSocketHandler {
   startHeartbeat() {
     setInterval(() => {
       const connections = connectionManager.getAllConnections();
-      connections.forEach((conn) => {
+      connections.forEach(async (conn) => {
         if (!conn.isAlive) {
           console.log(`💀 Terminating dead connection: ${conn.username}`);
           conn.ws.terminate();
-          this.handleDisconnect(conn.userId);
+          await this.handleDisconnect(conn.userId);
           return;
         }
 
         connectionManager.markDead(conn.userId);
+
+        if (conn.isAuthenticated) {
+          await this.activeUserService!.updateLastSeen(conn.userId);
+        }
 
         try {
           conn.ws.ping();

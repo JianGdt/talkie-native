@@ -69,4 +69,35 @@ export class UserService {
     const result = await this.db.query(query);
     return result.rows;
   }
+
+  async searchUsers(query: string, limit: number = 20) {
+    const sql = `
+    SELECT 
+      up.user_id as id,
+      up.username as name,
+      up.full_name,
+      up.avatar_url as avatar,
+      au.email,
+      COALESCE(pr.status, 'offline') as status,
+      pr.last_seen
+    FROM user_profiles up
+    LEFT JOIN auth.users au ON au.id = up.user_id
+    LEFT JOIN user_presence pr ON pr.user_id = up.user_id
+    WHERE 
+      up.username ILIKE $1 
+      OR up.full_name ILIKE $1
+      OR au.email ILIKE $1
+    ORDER BY 
+      CASE 
+        WHEN pr.status = 'online' THEN 1
+        WHEN pr.status = 'away' THEN 2
+        ELSE 3
+      END,
+      up.username
+    LIMIT $2
+  `;
+
+    const result = await this.db.query(sql, [`%${query}%`, limit]);
+    return result;
+  }
 }

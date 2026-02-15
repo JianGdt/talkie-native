@@ -1,31 +1,66 @@
+import { Pool } from "pg";
 import { Channel } from "../@types/message";
 import { User } from "../@types/websocket";
 
-/**
- * Channel Manager
- *
- * Manages channels (rooms) for the walkie-talkie app
- *
- * Responsibilities:
- * - Initialize default channels
- * - Track channel participants
- * - Manage user joins/leaves
- * - Provide channel information
- */
 class ChannelManager {
   private channels: Map<string, Channel> = new Map();
+  private db: Pool | null = null;
 
   constructor() {
-    this.initializeDefaultChannels();
+    console.log("🧠 ChannelManager instance created");
+  }
+  
+  async initialize(db: Pool) {
+    this.db = db;
+    console.log("🔌 ChannelManager connected to database");
+    await this.loadChannelsFromDatabase();
   }
 
-  // ============================================
-  // INITIALIZATION
-  // ============================================
+  private async loadChannelsFromDatabase() {
+    if (!this.db) {
+      console.warn("⚠️ Database not connected, using default channels");
+      this.initializeDefaultChannels();
+      return;
+    }
 
-  /**
-   * Initialize default channels on server start
-   */
+    try {
+      const query = `
+        SELECT 
+          id::text as id,
+          name, 
+          description, 
+          category,
+          created_at
+        FROM channels
+        ORDER BY created_at ASC
+      `;
+
+      const result = await this.db.query(query);
+
+      if (result.rows.length === 0) {
+        console.log("📦 No channels in database");
+        return;
+      }
+
+      result.rows.forEach((row) => {
+        const channel: Channel = {
+          id: row.id,
+          name: row.name,
+          description: row.description,
+          participants: new Map(),
+          activeUsers: new Set(),
+          createdAt: row.created_at,
+        };
+        this.channels.set(channel.id, channel);
+      });
+
+      console.log(`✅ Loaded ${result.rows.length} channels from database`);
+    } catch (error) {
+      console.error("❌ Failed to load channels from database:", error);
+      this.initializeDefaultChannels();
+    }
+  }
+
   private initializeDefaultChannels() {
     const defaultChannels = [
       {
@@ -55,23 +90,15 @@ class ChannelManager {
       this.channels.set(channel.id, channel);
     });
 
-    console.log(`✅ Initialized ${defaultChannels.length} default channels`);
+    console.log(
+      `✅ Initialized ${defaultChannels.length} default channels (fallback)`,
+    );
   }
 
-  // ============================================
-  // CHANNEL QUERIES
-  // ============================================
-
-  /**
-   * Get a specific channel by ID
-   */
   getChannel(channelId: string): Channel | undefined {
     return this.channels.get(channelId);
   }
 
-  /**
-   * Get all channels with serialized data
-   */
   getAllChannels(): any[] {
     return Array.from(this.channels.values()).map((channel) => ({
       ...channel,
@@ -80,9 +107,6 @@ class ChannelManager {
     }));
   }
 
-  /**
-   * Get detailed channel information
-   */
   getChannelInfo(channelId: string) {
     const channel = this.channels.get(channelId);
     if (!channel) {
@@ -100,9 +124,6 @@ class ChannelManager {
     };
   }
 
-  /**
-   * Get all users in a channel
-   */
   getChannelUsers(channelId: string): User[] {
     const channel = this.channels.get(channelId);
     if (!channel) {
@@ -113,16 +134,6 @@ class ChannelManager {
       .map((userId) => channel.participants.get(userId))
       .filter((user): user is User => user !== undefined);
   }
-
-  // ============================================
-  // USER MANAGEMENT
-  // ============================================
-
-  /**
-   * Add a user to a channel
-   *
-   * @returns true if successful, false if channel doesn't exist
-   */
   addUserToChannel(channelId: string, user: User): boolean {
     const channel = this.channels.get(channelId);
     if (!channel) {
@@ -139,11 +150,6 @@ class ChannelManager {
     return true;
   }
 
-  /**
-   * Remove a user from a channel
-   *
-   * @returns true if successful, false if channel doesn't exist
-   */
   removeUserFromChannel(channelId: string, userId: string): boolean {
     const channel = this.channels.get(channelId);
     if (!channel) {
@@ -163,50 +169,46 @@ class ChannelManager {
     return true;
   }
 
-  /**
-   * Check if a user is in a specific channel
-   */
   isUserInChannel(channelId: string, userId: string): boolean {
     const channel = this.channels.get(channelId);
     return channel ? channel.activeUsers.has(userId) : false;
   }
 
-  // ============================================
-  // CHANNEL CREATION/DELETION
-  // ============================================
+  async reloadChannels() {
+    if (!this.db) {
+      console.warn("⚠️ Cannot reload: Database not connected");
+      return;
+    }
 
-  /**
-   * Create a new channel
-   */
-  createChannel(name: string, description?: string): Channel {
-    const id = `channel_${Date.now()}`;
-    const channel: Channel = {
-      id,
-      name,
-      description,
-      participants: new Map(),
-      activeUsers: new Set(),
-      createdAt: new Date(),
-    };
+    const activeUsersByChannel = new Map<string, Set<string>>();
+    const participantsByChannel = new Map<string, Map<string, User>>();
 
-    this.channels.set(id, channel);
-    console.log(`📻 Created new channel: ${name} (${id})`);
+    this.channels.forEach((channel, channelId) => {
+      activeUsersByChannel.set(channelId, new Set(channel.activeUsers));
+      participantsByChannel.set(channelId, new Map(channel.participants));
+    });
 
-    return channel;
+    this.channels.clear();
+    await this.loadChannelsFromDatabase();
+
+    activeUsersByChannel.forEach((activeUsers, channelId) => {
+      const channel = this.channels.get(channelId);
+      if (channel) {
+        channel.activeUsers = activeUsers;
+        channel.participants =
+          participantsByChannel.get(channelId) || new Map();
+      }
+    });
+
+    console.log("🔄 Reloaded channels from database");
   }
 
-  /**
-   * Delete a channel
-   *
-   * @returns true if deleted, false if doesn't exist
-   */
-  deleteChannel(channelId: string): boolean {
-    const channel = this.channels.get(channelId);
-    if (channel) {
-      console.log(`🗑️ Deleted channel: ${channel.name} (${channelId})`);
-      return this.channels.delete(channelId);
-    }
-    return false;
+  clearActiveUsers() {
+    this.channels.forEach((channel) => {
+      channel.activeUsers.clear();
+      channel.participants.clear();
+    });
+    console.log("🧹 Cleared all active users from channels");
   }
 }
 

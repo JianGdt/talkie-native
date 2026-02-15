@@ -8,10 +8,6 @@ class ConnectionManager {
     console.log("🧠 ConnectionManager instance created");
   }
 
-  // ============================================
-  // CONNECTION MANAGEMENT
-  // ============================================
-
   addConnection(userId: string, connection: ClientConnection) {
     const existing = this.connections.get(userId);
 
@@ -67,10 +63,6 @@ class ConnectionManager {
     }
   }
 
-  // ============================================
-  // AUTH MANAGEMENT
-  // ============================================
-
   markAuthenticated(userId: string, isAuthenticated: boolean) {
     const connection = this.connections.get(userId);
 
@@ -88,10 +80,6 @@ class ConnectionManager {
   isAuthenticated(userId: string): boolean {
     return this.connections.get(userId)?.isAuthenticated ?? false;
   }
-
-  // ============================================
-  // TRANSMISSION MANAGEMENT
-  // ============================================
 
   startTransmission(
     channelId: string,
@@ -135,10 +123,6 @@ class ConnectionManager {
     return transmission ? transmission.userId === userId : false;
   }
 
-  // ============================================
-  // HEARTBEAT
-  // ============================================
-
   markAlive(userId: string) {
     const connection = this.connections.get(userId);
     if (connection) {
@@ -159,10 +143,6 @@ class ConnectionManager {
     );
   }
 
-  // ============================================
-  // STATS
-  // ============================================
-
   getStats() {
     return {
       totalConnections: this.connections.size,
@@ -174,8 +154,4 @@ class ConnectionManager {
   }
 }
 
-/**
- * 🔥 Safe Singleton Pattern
- * This guarantees only ONE instance across the app.
- */
 export const connectionManager = new ConnectionManager();
