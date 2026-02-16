@@ -6,8 +6,18 @@ import { env } from "../config/env";
 async function databasePlugin(fastify: FastifyInstance) {
   const pool = new Pool({
     connectionString: env.DATABASE_URL,
+    ssl: {
+      rejectUnauthorized: false,
+    },
+    max: 10,
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 10000,
+    keepAlive: true,
+    keepAliveInitialDelayMillis: 10000,
+  });
+
+  pool.on("error", (err) => {
+    console.log("err", err.message);
   });
 
   try {
@@ -22,10 +32,11 @@ async function databasePlugin(fastify: FastifyInstance) {
       "Connection string (sanitized):",
       env.DATABASE_URL?.replace(/:[^:@]+@/, ":***@"),
     );
-    throw error; // Fail fast if database connection fails
+    throw error;
   }
 
   fastify.decorate("db", pool);
+
   fastify.addHook("onClose", async () => {
     try {
       await pool.end();
