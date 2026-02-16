@@ -1,437 +1,407 @@
-// components/talkie/TalkScreen.tsx
-import React, { useEffect, useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
   TextInput,
-  ActivityIndicator,
-  ScrollView,
   TouchableOpacity,
+  FlatList,
+  ActivityIndicator,
   Alert,
 } from "react-native";
-import { useWebSocketStore } from "@/store/useWebSocketStore";
+import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@/hooks/useAuth";
-import { MessageType, WebSocketMessage } from "@/@types/talkie";
+import {
+  Conversation,
+  conversationService,
+} from "@/api/services/conversationServices";
+import UserSearchModal from "@/components/modal/UserSearch";
 
-export default function MessageScreen() {
-  const {
-    isConnected,
-    isAuthenticated,
-    sendMessage,
-    messages,
-    userId,
-    username,
-    connectionError,
-    initializeWebSocket,
-  } = useWebSocketStore();
+type FilterType = "all" | "direct" | "groups";
 
-  const { session, loading: authLoading } = useAuth();
-  const [messageContent, setMessageContent] = useState("");
-  const [isRecording, setIsRecording] = useState(false);
+export default function MessageScreen({ navigation }: any) {
+  const { session } = useAuth();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedFilter, setSelectedFilter] = useState<FilterType>("all");
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [showUserSearch, setShowUserSearch] = useState(false);
 
-  // Channel state
-  const [currentChannel, setCurrentChannel] = useState<string | null>(null);
-  const [availableChannels] = useState([
-    { id: "1", name: "General" },
-    { id: "2", name: "Team Alpha" },
-    { id: "3", name: "Emergency" },
-  ]);
-
-  // ============================================
-  // INITIALIZE WEBSOCKET
-  // ============================================
   useEffect(() => {
-    if (session && !isConnected) {
-      console.log("📱 Session detected, initializing WebSocket...");
-      initializeWebSocket();
+    if (session?.user?.id) {
+      fetchConversations();
     }
-  }, [session, isConnected, initializeWebSocket]);
+  }, [session?.user?.id]);
 
-  // ============================================
-  // CHANNEL MANAGEMENT
-  // ============================================
-  const handleJoinChannel = (channelId: string) => {
-    if (!isAuthenticated) {
-      Alert.alert("Error", "Not authenticated yet");
-      return;
-    }
-
-    sendMessage({
-      type: MessageType.JOIN_CHANNEL,
-      payload: {
-        channelId,
-        user: { userId, username },
-      },
-      timestamp: Date.now(),
-    });
-
-    setCurrentChannel(channelId);
-  };
-
-  const handleLeaveChannel = () => {
-    if (!currentChannel || !isAuthenticated) return;
-
-    sendMessage({
-      type: MessageType.LEAVE_CHANNEL,
-      payload: { channelId: currentChannel },
-      timestamp: Date.now(),
-    });
-
-    setCurrentChannel(null);
-  };
-
-  // ============================================
-  // TEXT MESSAGE
-  // ============================================
-  const handleSendMessage = () => {
-    if (!currentChannel) {
-      Alert.alert("Error", "Join a channel first");
-      return;
-    }
-
-    if (!messageContent.trim()) return;
-
-    sendMessage({
-      type: MessageType.MESSAGE,
-      payload: {
-        content: messageContent,
-        channelId: currentChannel,
-      },
-      timestamp: Date.now(),
-    });
-
-    setMessageContent("");
-  };
-
-  // ============================================
-  // AUDIO TRANSMISSION
-  // ============================================
-  const handleStartRecording = () => {
-    if (!currentChannel) {
-      Alert.alert("Error", "Join a channel first");
-      return;
-    }
-
-    setIsRecording(true);
-
-    sendMessage({
-      type: MessageType.START_TRANSMISSION,
-      payload: { channelId: currentChannel },
-      timestamp: Date.now(),
-    });
-
-    console.log("🎤 Started transmission");
-  };
-
-  const handleStopRecording = () => {
-    if (!currentChannel) return;
-
-    setIsRecording(false);
-
-    sendMessage({
-      type: MessageType.END_TRANSMISSION,
-      payload: { channelId: currentChannel },
-      timestamp: Date.now(),
-    });
-
-    console.log("🛑 Ended transmission");
-  };
-
-  // ============================================
-  // RENDER MESSAGES
-  // ============================================
-  const renderMessage = (msg: WebSocketMessage, index: number) => {
-    if (!msg?.type) return null;
-
-    const messageType = String(msg.type).toLowerCase();
-
-    switch (messageType) {
-      case "audio_data":
-        return (
-          <View
-            key={index}
-            className="bg-green-50 rounded-lg p-3 mb-2 border-l-4 border-green-500"
-          >
-            <View className="flex-row justify-between items-center mb-1">
-              <Text className="text-xs font-semibold text-green-600 uppercase">
-                🎙️ VOICE
-              </Text>
-              <Text className="text-xs text-gray-400">
-                {new Date(Number(msg.timestamp)).toLocaleTimeString()}
-              </Text>
-            </View>
-            <Text className="text-sm font-semibold text-green-800 mt-1">
-              From: {msg.username || "Unknown"}
-            </Text>
-          </View>
-        );
-
-      case "transmission_started":
-        return (
-          <View
-            key={index}
-            className="bg-gray-100 rounded-lg p-2 mb-2 items-center"
-          >
-            <Text className="text-sm text-gray-700">
-              🔴 {msg.username} started speaking
-            </Text>
-          </View>
-        );
-
-      case "transmission_ended":
-        return (
-          <View
-            key={index}
-            className="bg-gray-100 rounded-lg p-2 mb-2 items-center"
-          >
-            <Text className="text-sm text-gray-700">
-              ⚪ {msg.username} stopped speaking
-            </Text>
-          </View>
-        );
-
-      case "user_joined":
-        return (
-          <View
-            key={index}
-            className="bg-gray-100 rounded-lg p-2 mb-2 items-center"
-          >
-            <Text className="text-sm text-gray-700">
-              👤 {msg.payload?.user?.username} joined
-            </Text>
-          </View>
-        );
-
-      case "user_left":
-        return (
-          <View
-            key={index}
-            className="bg-gray-100 rounded-lg p-2 mb-2 items-center"
-          >
-            <Text className="text-sm text-gray-700">👋 User left</Text>
-          </View>
-        );
-
-      case "channel_update":
-        return (
-          <View
-            key={index}
-            className="bg-gray-100 rounded-lg p-2 mb-2 items-center"
-          >
-            <Text className="text-sm text-gray-700">
-              📻 {msg.payload?.activeCount} users online
-            </Text>
-          </View>
-        );
-
-      case "message":
-        return (
-          <View
-            key={index}
-            className="bg-gray-50 rounded-lg p-3 mb-2 border-l-4 border-blue-500"
-          >
-            <View className="flex-row justify-between items-center mb-1">
-              <Text className="text-xs font-semibold text-blue-600 uppercase">
-                💬 TEXT
-              </Text>
-              <Text className="text-xs text-gray-400">
-                {new Date(Number(msg.timestamp)).toLocaleTimeString()}
-              </Text>
-            </View>
-            <Text className="text-sm font-semibold text-gray-700 mt-1">
-              From: {msg.username}
-            </Text>
-            <Text className="text-sm text-gray-900 mt-1 leading-5">
-              {msg.payload?.content}
-            </Text>
-          </View>
-        );
-
-      default:
-        return null;
+  const fetchConversations = async () => {
+    try {
+      setLoading(true);
+      const data = await conversationService.getConversations(
+        session?.user?.id!,
+        session?.access_token,
+      );
+      setConversations(data);
+    } catch (error) {
+      console.error("Failed to fetch conversations:", error);
+      Alert.alert("Error", "Failed to load conversations");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
   };
 
-  // ============================================
-  // LOADING & ERROR
-  // ============================================
-  if (authLoading) {
+  const handleRefresh = () => {
+    setRefreshing(true);
+    fetchConversations();
+  };
+
+  const handleUserSelect = (conversationId: string, userName: string) => {
+    // Navigate to the new conversation
+    navigation.navigate("MessageScreen", {
+      conversationId,
+      type: "direct",
+      name: userName,
+    });
+
+    // Refresh conversations list
+    fetchConversations();
+  };
+
+  const filteredConversations = conversations.filter((conv) => {
+    const matchesSearch =
+      conv.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      conv.participants.some((p) =>
+        p.name.toLowerCase().includes(searchQuery.toLowerCase()),
+      );
+
+    const matchesFilter =
+      selectedFilter === "all" ||
+      (selectedFilter === "direct" && conv.type === "direct") ||
+      (selectedFilter === "groups" && conv.type === "group");
+
+    return matchesSearch && matchesFilter;
+  });
+
+  const getConversationName = (conv: Conversation) => {
+    if (conv.type === "direct" && conv.participants.length > 0) {
+      return conv.participants[0].name;
+    }
+    return conv.name || "Unnamed Group";
+  };
+
+  const getConversationAvatar = (conv: Conversation) => {
+    if (conv.type === "direct" && conv.participants.length > 0) {
+      return conv.participants[0].name
+        .split(" ")
+        .map((n) => n[0])
+        .join("")
+        .toUpperCase();
+    }
     return (
-      <View className="flex-1 justify-center items-center bg-gray-50">
-        <ActivityIndicator size="large" color="#3b82f6" />
-        <Text className="mt-3 text-base text-gray-600">Loading...</Text>
-      </View>
+      conv.name
+        ?.split(" ")
+        .map((n) => n[0])
+        .join("")
+        .toUpperCase() || "G"
     );
-  }
+  };
 
-  if (!session) {
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "online":
+        return "bg-emerald-400";
+      case "away":
+        return "bg-amber-400";
+      default:
+        return "bg-slate-600";
+    }
+  };
+
+  const formatTime = (timestamp?: number) => {
+    if (!timestamp) return "";
+
+    const now = Date.now();
+    const diff = now - timestamp;
+    const seconds = Math.floor(diff / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+
+    if (days > 0) return `${days}d ago`;
+    if (hours > 0) return `${hours}h ago`;
+    if (minutes > 0) return `${minutes}m ago`;
+    return "Just now";
+  };
+
+  const handleConversationPress = (conv: Conversation) => {
+    navigation.navigate("MessageScreen", {
+      conversationId: conv.id,
+      type: conv.type,
+      name: getConversationName(conv),
+      participants: conv.participants,
+    });
+  };
+
+  const renderConversation = ({ item }: { item: Conversation }) => (
+    <TouchableOpacity
+      className="mb-3"
+      activeOpacity={0.7}
+      onPress={() => handleConversationPress(item)}
+    >
+      <View
+        className={`bg-slate-900/50 backdrop-blur-xl rounded-3xl overflow-hidden border ${
+          item.is_pinned ? "border-blue-500/50" : "border-slate-800/50"
+        }`}
+      >
+        <View className="p-4">
+          <View className="flex-row items-center gap-4">
+            <View className="relative">
+              <View
+                className={`w-14 h-14 rounded-2xl items-center justify-center ${
+                  item.type === "direct"
+                    ? "bg-gradient-to-br from-cyan-500 to-blue-500"
+                    : "bg-gradient-to-br from-purple-500 to-pink-500"
+                }`}
+              >
+                <Text className="text-white text-lg font-bold">
+                  {getConversationAvatar(item)}
+                </Text>
+              </View>
+
+              {item.type === "direct" && item.participants[0] && (
+                <View
+                  className={`absolute -bottom-0.5 -right-0.5 w-4 h-4 ${getStatusColor(
+                    item.participants[0].status,
+                  )} rounded-full border-2 border-slate-900`}
+                />
+              )}
+
+              {item.is_pinned && (
+                <View className="absolute -top-1 -left-1 w-5 h-5 bg-blue-500 rounded-full items-center justify-center">
+                  <Ionicons name="pin" size={12} color="white" />
+                </View>
+              )}
+
+              {item.type === "group" && (
+                <View className="absolute -bottom-1 -right-1 bg-slate-800 rounded-full px-1.5 py-0.5 border border-slate-700">
+                  <Text className="text-white text-xs font-bold">
+                    {item.participants.length}
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            <View className="flex-1">
+              <View className="flex-row items-center justify-between mb-1">
+                <View className="flex-row items-center gap-2 flex-1">
+                  <Text className="text-white text-base font-bold tracking-tight">
+                    {getConversationName(item)}
+                  </Text>
+                  {item.is_muted && (
+                    <Ionicons name="volume-mute" size={16} color="#64748b" />
+                  )}
+                </View>
+                <Text className="text-slate-500 text-xs">
+                  {formatTime(item.last_message?.timestamp)}
+                </Text>
+              </View>
+
+              <View className="flex-row items-center justify-between">
+                <Text
+                  className={`flex-1 text-sm ${
+                    item.last_message?.isRead || item.unread_count === 0
+                      ? "text-slate-400"
+                      : "text-white font-semibold"
+                  }`}
+                  numberOfLines={1}
+                >
+                  {item.type === "group" && item.last_message?.sender && (
+                    <Text className="text-slate-500">
+                      {item.last_message.sender}:{" "}
+                    </Text>
+                  )}
+                  {item.last_message?.content || "No messages yet"}
+                </Text>
+
+                {item.unread_count > 0 && (
+                  <View className="ml-3 bg-blue-500 rounded-full min-w-[24px] h-6 items-center justify-center px-2">
+                    <Text className="text-white text-xs font-bold">
+                      {item.unread_count > 99 ? "99+" : item.unread_count}
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              {item.type === "group" && item.participants.length > 0 && (
+                <Text className="text-slate-500 text-xs mt-1" numberOfLines={1}>
+                  👥 {item.participants.map((p) => p.name).join(", ")}
+                </Text>
+              )}
+            </View>
+          </View>
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+
+  if (loading) {
     return (
-      <View className="flex-1 justify-center items-center bg-gray-50">
-        <Text className="text-base text-red-500 font-semibold">
-          Please log in
-        </Text>
+      <View className="flex-1 bg-slate-950 items-center justify-center">
+        <ActivityIndicator size="large" color="#3b82f6" />
+        <Text className="text-slate-400 mt-4">Loading conversations...</Text>
       </View>
     );
   }
 
   return (
-    <View className="flex-1 bg-gray-900 p-4">
-      {/* STATUS CARD */}
-      <View className="bg-gray-800  rounded-xl p-4 mb-4 shadow-sm">
-        <View className="flex-row items-center mb-3">
-          <Text className="text-sm font-semibold text-gray-700 w-24">
-            Channel:
-          </Text>
-          <View className="flex-row items-center bg-gray-100 px-3 py-1.5 rounded-full">
-            <View
-              className={`w-2 h-2 rounded-full mr-1.5 ${
-                currentChannel ? "bg-blue-500" : "bg-gray-400"
-              }`}
-            />
-            <Text className="text-sm font-medium text-gray-900">
-              {currentChannel
-                ? availableChannels.find((c) => c.id === currentChannel)?.name
-                : "Not in channel"}
-            </Text>
-          </View>
-        </View>
-
-        {/* User Info */}
-        {userId && (
-          <View className="mt-2 pt-3 border-t border-gray-200">
-            <Text className="text-base font-semibold text-gray-900 mb-0.5">
-              {username}
-            </Text>
-            <Text className="text-xs text-gray-400 font-mono">
-              {userId.substring(0, 8)}...
-            </Text>
-          </View>
-        )}
-
-        {/* Connection Error */}
-        {connectionError && (
-          <View className="mt-3 p-3 bg-red-50 rounded-lg border-l-4 border-red-500 flex-row justify-between items-center">
-            <Text className="flex-1 text-sm text-red-800">
-              ⚠️ {connectionError}
-            </Text>
-            <TouchableOpacity
-              onPress={initializeWebSocket}
-              className="bg-red-500 px-3 py-1.5 rounded-md"
-            >
-              <Text className="text-white font-semibold text-xs">Retry</Text>
-            </TouchableOpacity>
-          </View>
-        )}
+    <View className="flex-1 bg-slate-950">
+      <View className="absolute inset-0 opacity-30">
+        <View className="absolute top-0 right-0 w-96 h-96 bg-blue-500/20 rounded-full blur-3xl" />
+        <View className="absolute bottom-0 left-0 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl" />
       </View>
 
-      {/* CHANNEL SELECTOR */}
-      <View className="mb-4">
-        <Text className="text-base font-bold text-gray-900 mb-2">Channels</Text>
-        <View className="flex-row gap-2">
-          {availableChannels.map((channel) => (
-            <TouchableOpacity
-              key={channel.id}
-              className={`flex-1 py-3 rounded-lg border-2 items-center ${
-                currentChannel === channel.id
-                  ? "bg-blue-500 border-blue-500"
-                  : "bg-gray-800  border-gray-200"
-              } ${!isAuthenticated ? "opacity-50" : ""}`}
-              onPress={() => {
-                if (currentChannel === channel.id) {
-                  handleLeaveChannel();
-                } else {
-                  handleJoinChannel(channel.id);
-                }
-              }}
-              disabled={!isAuthenticated}
-            >
-              <Text
-                className={`text-sm font-semibold ${
-                  currentChannel === channel.id ? "text-white" : "text-gray-700"
-                }`}
-              >
-                {currentChannel === channel.id ? "✓ " : ""}
-                {channel.name}
-              </Text>
+      <View className="bg-slate-900/80 backdrop-blur-xl px-6 pt-16 pb-6 border-b border-slate-800/50">
+        <View className="flex-row items-center justify-between mb-6">
+          <View>
+            <Text className="text-white text-3xl font-bold tracking-tight mb-1">
+              Messages
+            </Text>
+            <Text className="text-slate-400 text-sm">
+              {filteredConversations.length} conversations
+            </Text>
+          </View>
+
+          {/* New Message Button - Opens User Search */}
+          <TouchableOpacity
+            className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl items-center justify-center shadow-lg shadow-blue-500/30"
+            onPress={() => setShowUserSearch(true)}
+          >
+            <Ionicons name="add" size={28} color="white" />
+          </TouchableOpacity>
+        </View>
+
+        <View className="bg-slate-800/50 backdrop-blur-sm rounded-2xl flex-row items-center px-5 py-4 border border-slate-700/50 shadow-xl">
+          <Ionicons name="search" size={22} color="#64748b" />
+          <TextInput
+            className="flex-1 ml-4 text-white text-base"
+            placeholder="Search messages..."
+            placeholderTextColor="#64748b"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery("")}>
+              <View className="w-8 h-8 bg-slate-700/50 rounded-full items-center justify-center">
+                <Ionicons name="close" size={18} color="#94a3b8" />
+              </View>
             </TouchableOpacity>
-          ))}
+          )}
         </View>
       </View>
 
-      {/* TEXT MESSAGE INPUT */}
-      <View className="flex-row mb-3 gap-2">
-        <TextInput
-          className="flex-1 bg-gray-800  rounded-xl p-3 text-base border border-gray-200"
-          placeholder={
-            currentChannel ? "Type a message..." : "Join a channel first"
-          }
-          placeholderTextColor="#9ca3af"
-          value={messageContent}
-          onChangeText={setMessageContent}
-          editable={isConnected && !!currentChannel}
-          multiline
-          style={{ maxHeight: 100 }}
-        />
+      <View className="flex-row px-6 py-4 gap-3 border-b border-slate-800/50">
         <TouchableOpacity
-          className={`px-5 rounded-xl justify-center items-center ${
-            !isConnected || !currentChannel || !messageContent.trim()
-              ? "bg-gray-400 opacity-50"
-              : "bg-blue-500"
+          onPress={() => setSelectedFilter("all")}
+          className={`px-5 py-2.5 rounded-2xl ${
+            selectedFilter === "all"
+              ? "bg-gradient-to-r from-blue-500 to-blue-600 shadow-lg shadow-blue-500/30"
+              : "bg-slate-900/50 border border-slate-800/50"
           }`}
-          onPress={handleSendMessage}
-          disabled={!isConnected || !currentChannel || !messageContent.trim()}
         >
-          <Text className="text-xl">📤</Text>
+          <Text
+            className={`font-semibold text-sm ${
+              selectedFilter === "all" ? "text-white" : "text-slate-400"
+            }`}
+          >
+            All
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={() => setSelectedFilter("direct")}
+          className={`px-5 py-2.5 rounded-2xl flex-row items-center gap-2 ${
+            selectedFilter === "direct"
+              ? "bg-gradient-to-r from-blue-500 to-blue-600 shadow-lg shadow-blue-500/30"
+              : "bg-slate-900/50 border border-slate-800/50"
+          }`}
+        >
+          <Ionicons
+            name="person"
+            size={16}
+            color={selectedFilter === "direct" ? "white" : "#64748b"}
+          />
+          <Text
+            className={`font-semibold text-sm ${
+              selectedFilter === "direct" ? "text-white" : "text-slate-400"
+            }`}
+          >
+            Direct
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={() => setSelectedFilter("groups")}
+          className={`px-5 py-2.5 rounded-2xl flex-row items-center gap-2 ${
+            selectedFilter === "groups"
+              ? "bg-gradient-to-r from-blue-500 to-blue-600 shadow-lg shadow-blue-500/30"
+              : "bg-slate-900/50 border border-slate-800/50"
+          }`}
+        >
+          <Ionicons
+            name="people"
+            size={16}
+            color={selectedFilter === "groups" ? "white" : "#64748b"}
+          />
+          <Text
+            className={`font-semibold text-sm ${
+              selectedFilter === "groups" ? "text-white" : "text-slate-400"
+            }`}
+          >
+            Groups
+          </Text>
         </TouchableOpacity>
       </View>
 
-      {/* PUSH-TO-TALK BUTTON */}
-      <TouchableOpacity
-        className={`p-4 rounded-xl items-center mb-4 shadow-lg ${
-          isRecording
-            ? "bg-red-500"
-            : !isConnected || !currentChannel
-              ? "bg-gray-400 opacity-50"
-              : "bg-green-500"
-        }`}
-        onPressIn={handleStartRecording}
-        onPressOut={handleStopRecording}
-        disabled={!isConnected || !currentChannel}
-      >
-        <Text className="text-white text-base font-semibold">
-          {isRecording
-            ? "🔴 Recording... Release to stop"
-            : currentChannel
-              ? "🎙️ Hold to Talk"
-              : "Join a channel first"}
-        </Text>
-      </TouchableOpacity>
-
-      {/* MESSAGES */}
-      <View className="flex-1 bg-gray-800  rounded-xl p-4 shadow-sm">
-        <View className="flex-row justify-between items-center mb-2">
-          <Text className="text-lg font-bold text-gray-900">Messages</Text>
-          <View className="bg-blue-500 px-2.5 py-1 rounded-xl">
-            <Text className="text-white text-xs font-semibold">
-              {messages.length}
-            </Text>
-          </View>
-        </View>
-
-        <ScrollView className="flex-1" contentContainerClassName="pb-4">
-          {messages.length === 0 ? (
-            <View className="p-8 items-center">
-              <Text className="text-sm text-gray-400 text-center">
-                {!isAuthenticated
-                  ? "Connecting..."
-                  : "No messages yet. Join a channel!"}
-              </Text>
+      <FlatList
+        data={filteredConversations}
+        renderItem={renderConversation}
+        keyExtractor={(item) => item.id}
+        contentContainerClassName="px-6 py-5"
+        showsVerticalScrollIndicator={false}
+        refreshing={refreshing}
+        onRefresh={handleRefresh}
+        ListEmptyComponent={
+          <View className="items-center justify-center py-24">
+            <View className="w-20 h-20 bg-slate-900/50 rounded-3xl items-center justify-center mb-5">
+              <Ionicons name="chatbubbles-outline" size={40} color="#334155" />
             </View>
-          ) : (
-            messages.map((msg, i) => renderMessage(msg, i))
-          )}
-        </ScrollView>
-      </View>
+            <Text className="text-slate-400 text-lg font-semibold mb-2">
+              No conversations yet
+            </Text>
+            <Text className="text-slate-600 text-sm text-center px-12 mb-6">
+              {searchQuery
+                ? "No conversations match your search"
+                : "Start a new conversation to get started"}
+            </Text>
+
+            {!searchQuery && (
+              <TouchableOpacity
+                className="px-6 py-3 bg-blue-500 rounded-2xl"
+                onPress={() => setShowUserSearch(true)}
+              >
+                <Text className="text-white font-semibold">Find People</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        }
+      />
+
+      {/* User Search Modal */}
+      <UserSearchModal
+        visible={showUserSearch}
+        onClose={() => setShowUserSearch(false)}
+        onUserSelect={handleUserSelect}
+      />
     </View>
   );
 }

@@ -1,6 +1,8 @@
 import { Tabs } from "expo-router";
 import { AntDesign, Ionicons } from "@expo/vector-icons";
 
+// ALL TABS REGISTERED PUT IT HERE
+
 export default function TabsLayout() {
   return (
     <Tabs
@@ -32,6 +34,12 @@ export default function TabsLayout() {
           tabBarIcon: ({ color, size }) => (
             <AntDesign name="message" size={size} color={color} />
           ),
+        }}
+      />
+      <Tabs.Screen
+        name="messages/[id]"
+        options={{
+          href: null, // This hides it from the tab bar
         }}
       />
       <Tabs.Screen

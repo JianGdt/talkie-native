@@ -22,17 +22,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    console.log("🔵 AuthProvider mounted");
-
-    // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
-      console.log("📱 Initial session:", session?.user?.email || "No session");
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
     });
 
-    // Listen for auth changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
@@ -53,20 +48,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = async () => {
-    console.log("🔓 signOut() called");
-    console.log("🔓 Current session before signout:", session?.user?.email);
-
     try {
       const { error } = await supabase.auth.signOut();
-
       if (error) {
         console.error("❌ Supabase signOut error:", error);
         throw error;
       }
-
-      console.log("✅ supabase.auth.signOut() completed");
-
-      // Manually clear state as backup
       setSession(null);
       setUser(null);
       console.log("✅ State manually cleared");
@@ -75,14 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw error;
     }
   };
-
-  console.log(
-    "🔄 AuthProvider render - session:",
-    session?.user?.email || "null",
-    "loading:",
-    loading,
-  );
-
+  
   return (
     <AuthContext.Provider value={{ user, session, loading, signOut }}>
       {children}

@@ -1,14 +1,14 @@
-// Frontend: @types/talkie.ts
-
 export enum MessageType {
   // Authentication
   AUTH = "auth",
-  AUTH_SUCCESS = "auth_success", // ✅ Fixed typo (was "auth_succes")
+  AUTH_SUCCESS = "auth_success",
   AUTH_ERROR = "auth_error",
 
   // Channel Management
   JOIN_CHANNEL = "join_channel",
   LEAVE_CHANNEL = "leave_channel",
+
+  CHANNEL_JOINED = "channel_joined",
   CHANNEL_UPDATE = "channel_update",
 
   // User Events
@@ -31,7 +31,6 @@ export enum MessageType {
   ERROR = "error",
 }
 
-// Base WebSocket message structure
 export interface WebSocketMessage<T = any> {
   type: MessageType | string;
   payload?: T;

@@ -1,6 +1,5 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
-import websocket from "@fastify/websocket";
 import { env } from "./config/env";
 import databasePlugin from "./plugins/database";
 import { authRoutes } from "./routes/auth";
@@ -42,17 +41,6 @@ async function start() {
       methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     });
 
-    // WebSocket configuration
-    await fastify.register(websocket, {
-      options: {
-        maxPayload: 1048576, // 1MB
-        clientTracking: true,
-        verifyClient: (info, next) => {
-          next(true);
-        },
-      },
-    });
-
     await fastify.register(databasePlugin);
 
     await channelManagerService.initialize(fastify.db);
@@ -74,7 +62,6 @@ async function start() {
       await activeUserService.markStaleUsersOffline();
     }, 60000); // Every 60 seconds
 
-    // Clean up on server shutdown
     fastify.addHook("onClose", async () => {
       clearInterval(staleCleanupInterval);
     });
