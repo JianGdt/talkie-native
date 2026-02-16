@@ -38,7 +38,7 @@ class WebSocketHandler {
     this.channelService = new ChannelService(this.db);
     this.conversationService = new ConversationService(this.db);
     this.activeUserService = new ActiveUserService(this.db);
-    console.log("✅ WebSocket handler initialized with database");
+    console.log("WebSocket handler initialized with database");
   }
 
   async handleConnection(ws: WebSocket, req: FastifyRequest) {
@@ -151,7 +151,6 @@ class WebSocketHandler {
       });
 
       this.broadcastPresenceUpdate(userId, "online");
-
     } catch (error) {
       console.error("❌ Authentication error:", error);
       this.sendMessage(ws, {
@@ -590,13 +589,10 @@ class WebSocketHandler {
           await this.handleDisconnect(conn.userId);
           return;
         }
-
         connectionManager.markDead(conn.userId);
-
         if (conn.isAuthenticated) {
           await this.activeUserService!.updateLastSeen(conn.userId);
         }
-
         try {
           conn.ws.ping();
         } catch (error) {

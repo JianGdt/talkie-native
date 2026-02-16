@@ -43,6 +43,24 @@ async function start() {
 
     await fastify.register(databasePlugin);
 
+    // Health check endpoint
+    fastify.get("/health", async (request, reply) => {
+      try {
+        await fastify.db.query("SELECT 1");
+        return {
+          status: "healthy",
+          database: "connected",
+          timestamp: Date.now(),
+        };
+      } catch (error) {
+        return reply.status(503).send({
+          status: "unhealthy",
+          database: "disconnected",
+          error: error instanceof Error ? error.message : "Unknown error",
+        });
+      }
+    });
+
     await channelManagerService.initialize(fastify.db);
 
     // Register routes
@@ -56,11 +74,13 @@ async function start() {
 
     await fastify.register(conversationRoutes);
 
+    console.log("All routes registered successfully");
+
     const activeUserService = new ActiveUserService(fastify.db);
 
     const staleCleanupInterval = setInterval(async () => {
       await activeUserService.markStaleUsersOffline();
-    }, 60000); // Every 60 seconds
+    }, 60000);
 
     fastify.addHook("onClose", async () => {
       clearInterval(staleCleanupInterval);

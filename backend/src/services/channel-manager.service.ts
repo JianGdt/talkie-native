@@ -1,4 +1,5 @@
 import { Pool } from "pg";
+import { v4 as uuidv4 } from "uuid";
 import { Channel } from "../@types/message";
 import { User } from "../@types/websocket";
 
@@ -9,7 +10,7 @@ class ChannelManager {
   constructor() {
     console.log("🧠 ChannelManager instance created");
   }
-  
+
   async initialize(db: Pool) {
     this.db = db;
     console.log("🔌 ChannelManager connected to database");
@@ -38,7 +39,8 @@ class ChannelManager {
       const result = await this.db.query(query);
 
       if (result.rows.length === 0) {
-        console.log("📦 No channels in database");
+        console.log("📦 No channels in database, creating defaults...");
+        await this.createDefaultChannels();
         return;
       }
 
@@ -57,6 +59,97 @@ class ChannelManager {
       console.log(`✅ Loaded ${result.rows.length} channels from database`);
     } catch (error) {
       console.error("❌ Failed to load channels from database:", error);
+      console.log("📦 Falling back to in-memory default channels");
+      this.initializeDefaultChannels();
+    }
+  }
+
+  private async createDefaultChannels() {
+    if (!this.db) {
+      this.initializeDefaultChannels();
+      return;
+    }
+
+    const defaultChannels = [
+      {
+        name: "General",
+        description: "Main communication channel",
+        category: "public",
+      },
+      {
+        name: "Random",
+        description: "Off-topic conversations",
+        category: "public",
+      },
+      {
+        name: "Announcements",
+        description: "Important updates and news",
+        category: "public",
+      },
+    ];
+
+    try {
+      for (const channelData of defaultChannels) {
+        // Check if channel exists by name
+        const existing = await this.db.query(
+          "SELECT * FROM channels WHERE name = $1 LIMIT 1",
+          [channelData.name],
+        );
+
+        let channelId: string;
+        let createdAt: Date;
+
+        if (existing.rows.length === 0) {
+          // Create new channel with UUID
+          channelId = uuidv4();
+          const result = await this.db.query(
+            `INSERT INTO channels (id, name, description, category, created_by, created_at, updated_at) 
+             VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+             RETURNING id::text, created_at`,
+            [
+              channelId,
+              channelData.name,
+              channelData.description,
+              channelData.category,
+              null,
+            ],
+          );
+
+          channelId = result.rows[0].id;
+          createdAt = result.rows[0].created_at;
+
+          console.log(
+            `✅ Created default channel: ${channelData.name} (${channelId})`,
+          );
+        } else {
+          // Use existing channel
+          channelId = existing.rows[0].id;
+          createdAt = existing.rows[0].created_at;
+          console.log(
+            `✅ Loaded existing channel: ${channelData.name} (${channelId})`,
+          );
+        }
+
+        // Add to in-memory map
+        const channel: Channel = {
+          id: channelId,
+          name: channelData.name,
+          description: channelData.description,
+          participants: new Map(),
+          activeUsers: new Set(),
+          createdAt: createdAt,
+        };
+
+        this.channels.set(channelId, channel);
+      }
+
+      console.log(`✅ Initialized ${defaultChannels.length} default channels`);
+    } catch (error) {
+      console.error(
+        "⚠️ Could not initialize default channels (table may not exist yet):",
+        error,
+      );
+      console.log("📦 Using in-memory fallback channels");
       this.initializeDefaultChannels();
     }
   }
@@ -64,19 +157,19 @@ class ChannelManager {
   private initializeDefaultChannels() {
     const defaultChannels = [
       {
-        id: "1",
+        id: uuidv4(),
         name: "General",
         description: "Main communication channel",
       },
       {
-        id: "2",
-        name: "Team Alpha",
-        description: "Team coordination channel",
+        id: uuidv4(),
+        name: "Random",
+        description: "Off-topic conversations",
       },
       {
-        id: "3",
-        name: "Emergency",
-        description: "Emergency communications only",
+        id: uuidv4(),
+        name: "Announcements",
+        description: "Important updates and news",
       },
     ];
 
@@ -91,7 +184,7 @@ class ChannelManager {
     });
 
     console.log(
-      `✅ Initialized ${defaultChannels.length} default channels (fallback)`,
+      `✅ Initialized ${defaultChannels.length} default channels (in-memory fallback)`,
     );
   }
 
@@ -134,6 +227,7 @@ class ChannelManager {
       .map((userId) => channel.participants.get(userId))
       .filter((user): user is User => user !== undefined);
   }
+
   addUserToChannel(channelId: string, user: User): boolean {
     const channel = this.channels.get(channelId);
     if (!channel) {
@@ -180,6 +274,7 @@ class ChannelManager {
       return;
     }
 
+    // Preserve active users and participants
     const activeUsersByChannel = new Map<string, Set<string>>();
     const participantsByChannel = new Map<string, Map<string, User>>();
 
@@ -188,9 +283,11 @@ class ChannelManager {
       participantsByChannel.set(channelId, new Map(channel.participants));
     });
 
+    // Clear and reload
     this.channels.clear();
     await this.loadChannelsFromDatabase();
 
+    // Restore active users
     activeUsersByChannel.forEach((activeUsers, channelId) => {
       const channel = this.channels.get(channelId);
       if (channel) {

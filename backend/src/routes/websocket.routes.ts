@@ -12,6 +12,8 @@ export const websocketRoutes: FastifyPluginAsync = async (fastify) => {
     return websocketHandler.getStats();
   });
 
+  // to prevent ghost connection is like ping/pong on the client and send the heartbeat from the server, (clean up)
   websocketHandler.startHeartbeat();
+
   console.log("💓 Heartbeat started for presence tracking");
 };
