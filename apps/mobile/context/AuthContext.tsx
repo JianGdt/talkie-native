@@ -31,6 +31,7 @@ export const AuthContext = createContext<AuthContextType | undefined>(
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setLoading] = useState(true);
+  const [initialized, setInitialized] = useState(false); // add this
 
   const [request, response, promptAsync] = Google.useAuthRequest({
     webClientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID,
@@ -48,6 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log("🔐 Auth event:", event, session?.user?.id);
+
       if (
         (event === "SIGNED_IN" || event === "INITIAL_SESSION") &&
         session?.user
@@ -60,6 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.error("❌ Error in onAuthStateChange:", err);
         } finally {
           setLoading(false);
+          setInitialized(true); // mark as done
         }
       } else if (
         event === "SIGNED_OUT" ||
@@ -67,6 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       ) {
         setUser(null);
         setLoading(false);
+        setInitialized(true); // mark as done even with no session
       }
     });
 
@@ -212,7 +216,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, isLoading, signOut, signInWithGoogle }}
+      value={{
+        user,
+        isLoading: isLoading || !initialized,
+        signOut,
+        signInWithGoogle,
+      }}
     >
       {children}
     </AuthContext.Provider>
