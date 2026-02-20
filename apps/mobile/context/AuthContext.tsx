@@ -5,6 +5,8 @@ import { makeRedirectUri } from "expo-auth-session";
 import * as Google from "expo-auth-session/providers/google";
 import { Platform } from "react-native";
 
+import * as Linking from "expo-linking";
+
 WebBrowser.maybeCompleteAuthSession();
 
 export interface User {
@@ -105,14 +107,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const redirectTo =
+    Platform.OS === "web" ? window.location.origin : Linking.createURL("/");
+
   const signInWithGoogle = async () => {
     try {
       if (Platform.OS === "web") {
         const { error } = await supabase.auth.signInWithOAuth({
           provider: "google",
           options: {
-            redirectTo:
-              process.env.EXPO_PUBLIC_APP_URL ?? "http://localhost:8081",
+            redirectTo,
+            skipBrowserRedirect: true,
           },
         });
         if (error) throw error;
