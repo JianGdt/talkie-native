@@ -73,29 +73,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  useEffect(() => {
-    checkSession();
-  }, []);
+  // useEffect(() => {
+  //   checkSession();
+  // }, []);
 
-  const checkSession = async () => {
-    setLoading(true);
-    try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (session?.user) {
-        const profile = await fetchUserProfile(session.user.id);
-        setUser(profile);
-      } else {
-        setUser(null);
-      }
-    } catch (error) {
-      console.error("Error checking session:", error);
-      setUser(null);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // const checkSession = async () => {
+  //   setLoading(true);
+  //   try {
+  //     const {
+  //       data: { session },
+  //     } = await supabase.auth.getSession();
+  //     if (session?.user) {
+  //       const profile = await fetchUserProfile(session.user.id);
+  //       setUser(profile);
+  //     } else {
+  //       setUser(null);
+  //     }
+  //   } catch (error) {
+  //     console.error("Error checking session:", error);
+  //     setUser(null);
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // };
 
   const signOut = async () => {
     try {
