@@ -42,11 +42,13 @@ class WebSocketHandler {
   }
 
   async handleConnection(ws: WebSocket, req: FastifyRequest) {
-    const { userId, username, token } = req.query as {
-      userId: string;
-      username: string;
-      token?: string;
-    };
+    const rawUrl = req.url ?? req.raw?.url ?? "";
+    const queryString = rawUrl.includes("?") ? rawUrl.split("?")[1] : "";
+    const params = new URLSearchParams(queryString);
+
+    const userId = params.get("userId");
+    const username = params.get("username");
+    const token = params.get("token") ?? undefined;
 
     if (!userId || !username) {
       ws.close(1008, "Missing userId or username");

@@ -1,10 +1,13 @@
-import { Stack } from 'expo-router';
+// app/(auth)/_layout.tsx
+import { useAuth } from "@/hooks/useAuth";
+import { Redirect, Stack } from "expo-router";
 
 export default function AuthLayout() {
-  return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="login" />
-      <Stack.Screen name="register" />
-    </Stack>
-  );
+  const { user, isLoading } = useAuth();
+
+  if (isLoading) return null;
+  if (user) return <Redirect href="/(tabs)" />;
+
+  return <Stack screenOptions={{ headerShown: false }} />;
 }
+  

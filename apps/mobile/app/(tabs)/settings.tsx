@@ -1,10 +1,12 @@
 import { SettingItem } from "@/components/SettingItems";
 import { useAuth } from "@/hooks/useAuth";
+import { useSettingsStore } from "@/store/useSettingStore";
 import { Ionicons } from "@expo/vector-icons";
-import React, { useState } from "react";
-import { ActivityIndicator, Alert } from "react-native";
+import { useRouter } from "expo-router";
+import React, { useEffect, useState } from "react";
 import {
-  Pressable,
+  ActivityIndicator,
+  Alert,
   ScrollView,
   Switch,
   Text,
@@ -13,45 +15,68 @@ import {
 } from "react-native";
 
 export default function SettingsScreen() {
-  const [pushNotifications, setPushNotifications] = useState(true);
-  const [soundEffects, setSoundEffects] = useState(true);
-  const [hapticFeedback, setHapticFeedback] = useState(true);
-  const [autoJoin, setAutoJoin] = useState(false);
+  const { signOut, user } = useAuth();
+  const router = useRouter();
   const [isSigningOut, setIsSigningOut] = useState(false);
 
-  const { signOut, user } = useAuth();
+  const {
+    pushNotifications,
+    soundEffects,
+    hapticFeedback,
+    autoJoin,
+    setPushNotifications,
+    setSoundEffects,
+    setHapticFeedback,
+    setAutoJoin,
+    hydrate,
+  } = useSettingsStore();
+
+  useEffect(() => {
+    hydrate();
+  }, []);
 
   const handleSignOut = async () => {
     if (isSigningOut) return;
     setIsSigningOut(true);
     try {
       await signOut();
-    } catch (error) {
+      router.replace("/(auth)/login");
+    } catch {
       Alert.alert("Error", "Failed to sign out. Please try again.");
     } finally {
       setIsSigningOut(false);
     }
   };
 
-  console.log("USER", user);
+  const switchProps = (value: boolean, onChange: (v: boolean) => void) => ({
+    rightElement: (
+      <Switch
+        value={value}
+        onValueChange={onChange}
+        trackColor={{ false: "#334155", true: "#3b82f6" }}
+        thumbColor="white"
+      />
+    ),
+    showChevron: false,
+  });
+
   return (
     <View className="flex-1 bg-slate-950">
-      {/* Header */}
       <View className="bg-slate-900 px-6 pt-14 pb-6 border-b border-slate-800">
         <Text className="text-white text-3xl font-bold">Settings</Text>
       </View>
 
       <ScrollView className="flex-1" contentContainerClassName="px-6 py-6">
-        <View className=" from-blue-500 to-purple-600 rounded-3xl p-6 mb-6 border border-blue-400/20">
+        <View className="from-blue-500 to-purple-600 rounded-3xl p-6 mb-6 border border-blue-400/20">
           <View className="flex-row items-center mb-4">
             <View className="w-20 h-20 bg-white rounded-2xl items-center justify-center">
               <Text className="text-blue-600 text-2xl font-bold">
-                {user?.user_metadata?.username}
+                {user?.username}
               </Text>
             </View>
             <View className="flex-1 ml-4">
               <Text className="text-white text-2xl font-bold">
-                {user?.user_metadata?.username}
+                {user?.username}
               </Text>
               <Text className="text-blue-100 text-sm mt-1">{user?.email}</Text>
             </View>
@@ -85,7 +110,6 @@ export default function SettingsScreen() {
           />
         </View>
 
-        {/* Notifications Section */}
         <View className="mb-6">
           <Text className="text-slate-500 text-xs font-semibold uppercase mb-3 ml-1">
             Notifications
@@ -94,47 +118,22 @@ export default function SettingsScreen() {
             icon="notifications-outline"
             title="Push Notifications"
             subtitle="Get notified of new messages"
-            rightElement={
-              <Switch
-                value={pushNotifications}
-                onValueChange={setPushNotifications}
-                trackColor={{ false: "#334155", true: "#3b82f6" }}
-                thumbColor="white"
-              />
-            }
-            showChevron={false}
+            {...switchProps(pushNotifications, setPushNotifications)}
           />
           <SettingItem
             icon="volume-high-outline"
             title="Sound Effects"
             subtitle="Play sounds for actions"
-            rightElement={
-              <Switch
-                value={soundEffects}
-                onValueChange={setSoundEffects}
-                trackColor={{ false: "#334155", true: "#3b82f6" }}
-                thumbColor="white"
-              />
-            }
-            showChevron={false}
+            {...switchProps(soundEffects, setSoundEffects)}
           />
           <SettingItem
             icon="phone-portrait-outline"
             title="Haptic Feedback"
             subtitle="Feel vibrations for interactions"
-            rightElement={
-              <Switch
-                value={hapticFeedback}
-                onValueChange={setHapticFeedback}
-                trackColor={{ false: "#334155", true: "#3b82f6" }}
-                thumbColor="white"
-              />
-            }
-            showChevron={false}
+            {...switchProps(hapticFeedback, setHapticFeedback)}
           />
         </View>
 
-        {/* App Settings */}
         <View className="mb-6">
           <Text className="text-slate-500 text-xs font-semibold uppercase mb-3 ml-1">
             App Settings
@@ -143,15 +142,7 @@ export default function SettingsScreen() {
             icon="chatbubbles-outline"
             title="Auto-join Last Channel"
             subtitle="Automatically rejoin on launch"
-            rightElement={
-              <Switch
-                value={autoJoin}
-                onValueChange={setAutoJoin}
-                trackColor={{ false: "#334155", true: "#3b82f6" }}
-                thumbColor="white"
-              />
-            }
-            showChevron={false}
+            {...switchProps(autoJoin, setAutoJoin)}
           />
           <SettingItem
             icon="mic-outline"
@@ -173,7 +164,6 @@ export default function SettingsScreen() {
           />
         </View>
 
-        {/* Support Section */}
         <View className="mb-6">
           <Text className="text-slate-500 text-xs font-semibold uppercase mb-3 ml-1">
             Support
@@ -201,6 +191,7 @@ export default function SettingsScreen() {
           />
         </View>
 
+        {/* Sign Out */}
         <TouchableOpacity
           className={`py-4 rounded-xl border-2 ${
             isSigningOut

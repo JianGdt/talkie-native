@@ -12,6 +12,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@/hooks/useAuth";
 import { channelService } from "@/api/services/channelServices";
+import { supabase } from "@/lib/supabase/client";
 
 interface CreateChannelModalProps {
   visible: boolean;
@@ -24,7 +25,7 @@ export default function CreateChannelModal({
   onClose,
   onChannelCreated,
 }: CreateChannelModalProps) {
-  const { session } = useAuth();
+  const { user } = useAuth();
   const [channelName, setChannelName] = useState("");
   const [description, setDescription] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<
@@ -64,6 +65,9 @@ export default function CreateChannelModal({
 
     try {
       setCreating(true);
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
 
       const newChannel = await channelService.createChannel(
         channelName.trim(),
@@ -72,12 +76,10 @@ export default function CreateChannelModal({
         session?.access_token,
       );
 
-      // Reset form
       setChannelName("");
       setDescription("");
       setSelectedCategory("public");
 
-      // Close and callback
       onClose();
       onChannelCreated(newChannel.id, newChannel.name);
 
@@ -131,13 +133,11 @@ export default function CreateChannelModal({
       onRequestClose={onClose}
     >
       <View className="flex-1 bg-slate-950">
-        {/* Gradient Background */}
         <View className="absolute inset-0 opacity-20">
           <View className="absolute top-0 right-0 w-96 h-96 bg-blue-500/30 rounded-full blur-3xl" />
           <View className="absolute bottom-0 left-0 w-96 h-96 bg-purple-500/30 rounded-full blur-3xl" />
         </View>
 
-        {/* Header */}
         <View className="bg-slate-900/80 backdrop-blur-xl px-6 pt-16 pb-6 border-b border-slate-800/50">
           <View className="flex-row items-center justify-between">
             <TouchableOpacity
@@ -161,7 +161,6 @@ export default function CreateChannelModal({
           contentContainerClassName="px-6 py-8"
           showsVerticalScrollIndicator={false}
         >
-          {/* Channel Name */}
           <View className="mb-6">
             <Text className="text-slate-400 text-sm font-semibold mb-3">
               CHANNEL NAME *
@@ -182,7 +181,6 @@ export default function CreateChannelModal({
             </Text>
           </View>
 
-          {/* Description */}
           <View className="mb-6">
             <Text className="text-slate-400 text-sm font-semibold mb-3">
               DESCRIPTION (OPTIONAL)
@@ -205,7 +203,6 @@ export default function CreateChannelModal({
             </Text>
           </View>
 
-          {/* Category Selection */}
           <View className="mb-8">
             <Text className="text-slate-400 text-sm font-semibold mb-3">
               CHANNEL TYPE
@@ -259,7 +256,6 @@ export default function CreateChannelModal({
             })}
           </View>
 
-          {/* Preview */}
           <View className="bg-slate-900/50 rounded-2xl border border-slate-800/50 p-5 mb-6">
             <Text className="text-slate-400 text-sm font-semibold mb-3">
               PREVIEW
@@ -295,7 +291,6 @@ export default function CreateChannelModal({
             </View>
           </View>
 
-          {/* Info Box */}
           <View className="bg-blue-500/10 rounded-2xl border border-blue-500/30 p-4 mb-6">
             <View className="flex-row items-start gap-3">
               <Ionicons name="information-circle" size={24} color="#3b82f6" />
@@ -313,7 +308,6 @@ export default function CreateChannelModal({
           </View>
         </ScrollView>
 
-        {/* Create Button */}
         <View className="px-6 pb-8 pt-4 bg-slate-900/80 backdrop-blur-xl border-t border-slate-800/50">
           <TouchableOpacity
             className={`py-4 rounded-2xl ${

@@ -24,7 +24,6 @@ export default function HomeScreen() {
 
   return (
     <ScrollView className="flex-1 bg-gray-900">
-      {/* Header */}
       <View className="px-6 pt-16 pb-6">
         <Text className="text-4xl font-bold text-white mb-2">
           Welcome Back! 👋
@@ -33,7 +32,6 @@ export default function HomeScreen() {
       </View>
 
       <View className="px-6 pb-6 space-y-4">
-        {/* Features Grid */}
         <View className="space-y-3">
           <Text className="text-white text-xl font-bold mb-2">✨ Features</Text>
           {features.map((feature, index) => (

@@ -15,6 +15,7 @@ import { API_ENDPOINTS } from "@/api/endpoints";
 import { apiClient } from "@/api/client";
 import { conversationService } from "@/api/services/conversationServices";
 import { useWebSocketStore } from "@/store/useWebSocketStore";
+import { supabase } from "@/lib/supabase/client";
 
 interface User {
   id: string;
@@ -36,15 +37,13 @@ export default function UserSearchModal({
   onClose,
   onUserSelect,
 }: UserSearchModalProps) {
-  const { session } = useAuth();
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
-    const { isUserOnline } = useWebSocketStore();
+  const { isUserOnline } = useWebSocketStore();
 
-
-  // Search users with debounce
   useEffect(() => {
     if (!searchQuery.trim()) {
       setUsers([]);
@@ -53,7 +52,7 @@ export default function UserSearchModal({
 
     const timer = setTimeout(() => {
       searchUsers(searchQuery);
-    }, 300); // 300ms debounce
+    }, 300);
 
     return () => clearTimeout(timer);
   }, [searchQuery]);
@@ -61,14 +60,14 @@ export default function UserSearchModal({
   const searchUsers = async (query: string) => {
     try {
       setLoading(true);
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       const endpoint = `${API_ENDPOINTS.USERS_SEARCH}?q=${encodeURIComponent(query)}`;
       const results = await apiClient.get<User[]>(endpoint, {
         token: session?.access_token,
       });
-
-      // Filter out current user
-      const filteredUsers = results.filter((u) => u.id !== session?.user?.id);
-      setUsers(filteredUsers);
+      setUsers(results.filter((u) => u.id !== user?.id));
     } catch (error) {
       console.error("Failed to search users:", error);
     } finally {
@@ -76,22 +75,20 @@ export default function UserSearchModal({
     }
   };
 
-  const handleUserSelect = async (user: User) => {
+  const handleUserSelect = async (selectedUser: User) => {
     try {
       setCreating(true);
-
-      // Create or get existing DM conversation
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
       const result = await conversationService.createDirect(
-        session?.user?.id!,
-        user.id,
+        user?.id!,
+        selectedUser.id,
         session?.access_token,
       );
-
-      // Close modal and navigate
       onClose();
-      onUserSelect(result.conversationId, user.name);
+      onUserSelect(result.conversationId, selectedUser.name);
     } catch (error) {
-      console.error("Failed to create conversation:", error);
       Alert.alert("Error", "Failed to start conversation");
     } finally {
       setCreating(false);
@@ -107,7 +104,6 @@ export default function UserSearchModal({
     const isOnline = isUserOnline(userId);
     return isOnline ? "online" : "offline";
   };
-
 
   const renderUser = ({ item }: { item: User }) => (
     <TouchableOpacity

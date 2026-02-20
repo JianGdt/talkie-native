@@ -1,5 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   FlatList,
   ScrollView,
@@ -8,270 +7,38 @@ import {
   TouchableOpacity,
   View,
   ActivityIndicator,
-  Alert,
 } from "react-native";
-import { useWebSocketStore } from "@/store/useWebSocketStore";
-import { useAuth } from "@/hooks/useAuth";
-import { MessageType } from "@/@types/talkie";
-import {
-  channelService,
-  Channel as APIChannel,
-} from "@/api/services/channelServices";
+import { Ionicons } from "@expo/vector-icons";
+import { useChannels } from "@/hooks/useChannels";
+import { getCategoryIcon, type Channel } from "@/utils/channels";
 import CreateChannelModal from "@/components/modal/CreateChannel";
-import { useRouter } from "expo-router";
+import { formatUnreadCount } from "@/utils/formats";
+import { CHANNEL_CATEGORIES } from "@/constant/chats";
 
-interface Channel {
-  id: string;
-  name: string;
-  description: string;
-  members: number;
-  isActive: boolean;
-  category: "public" | "private" | "team";
-  color: string;
-  unreadCount?: number;
-  lastActivity?: string;
-}
+export default function ChannelsScreen() {
+  const {
+    filteredChannels,
+    loading,
+    refreshing,
+    searchQuery,
+    selectedCategory,
+    setSearchQuery,
+    setSelectedCategory,
+    handleRefresh,
+    handleJoinChannel,
+    handleLeaveChannel,
+    reloadData,
+  } = useChannels();
 
-export default function ChannelsScreen({ navigation }: any) {
-  const { sendMessage, userId, username, isAuthenticated, isConnected } =
-    useWebSocketStore();
-  const { session } = useAuth();
-  const router = useRouter();
-
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState<
-    "all" | "public" | "private" | "team"
-  >("all");
-  const [channels, setChannels] = useState<Channel[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [userChannels, setUserChannels] = useState<Set<string>>(new Set());
   const [showCreateModal, setShowCreateModal] = useState(false);
 
-  useEffect(() => {
-    if (session?.user?.id) {
-      loadData();
-    }
-  }, [session?.user?.id]);
-
-  const loadData = async () => {
-    setLoading(true);
-    await Promise.all([fetchChannels(), fetchUserChannels()]);
-    setLoading(false);
-  };
-
-  const fetchUserChannels = async () => {
-    try {
-      const userJoinedChannels = await channelService.getUserChannels(
-        session?.user?.id!,
-        session?.access_token,
-      );
-
-      const joinedIds = new Set(userJoinedChannels.map((c: any) => c.id));
-      setUserChannels(joinedIds);
-    } catch (error) {
-      console.error("Failed to fetch user channels:", error);
-    }
-  };
-
-  const fetchChannels = async () => {
-    try {
-      const data = await channelService.getChannels(session?.access_token);
-
-      const transformedChannels: Channel[] = data.map(
-        (channel: APIChannel) => ({
-          id: channel.id,
-          name: channel.name,
-          description: channel.description || "No description",
-          members: channel.member_count || 0,
-          isActive: false,
-          category: channel.category || "public",
-          color: getChannelColor(channel.id),
-          unreadCount: 0,
-          lastActivity: getTimeAgo(channel.updated_at || channel.created_at),
-        }),
-      );
-
-      setChannels(transformedChannels);
-    } catch (error) {
-      console.error("Failed to fetch channels:", error);
-    }
-  };
-
-  useEffect(() => {
-    if (channels.length > 0 && userChannels.size > 0) {
-      setChannels((prevChannels) =>
-        prevChannels.map((channel) => ({
-          ...channel,
-          isActive: userChannels.has(channel.id),
-        })),
-      );
-    }
-  }, [userChannels.size]);
-
-  const handleRefresh = () => {
-    setRefreshing(true);
-    loadData().finally(() => setRefreshing(false));
-  };
-
-  const handleChannelCreated = (channelId: string, channelName: string) => {
-    loadData();
-    const newChannel = channels.find((c) => c.id === channelId);
-    if (newChannel) {
-      handleJoinChannel(newChannel);
-    }
-  };
-
-  const getChannelColor = (channelId: string): string => {
-    const colors = [
-      "bg-blue-500",
-      "bg-emerald-500",
-      "bg-purple-500",
-      "bg-red-500",
-      "bg-orange-500",
-      "bg-pink-500",
-      "bg-cyan-500",
-      "bg-indigo-500",
-      "bg-amber-500",
-      "bg-rose-500",
-    ];
-
-    let hash = 0;
-    for (let i = 0; i < channelId.length; i++) {
-      hash = channelId.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    const index = Math.abs(hash) % colors.length;
-    return colors[index];
-  };
-
-  const getTimeAgo = (dateString: string): string => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-
-    if (seconds < 60) return "Just now";
-    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-    if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
-    if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
-    return date.toLocaleDateString();
-  };
-
-  const categories = [
-    { id: "all", label: "All Channels", icon: "apps" },
-    { id: "public", label: "Public", icon: "globe-outline" },
-    { id: "private", label: "Private", icon: "lock-closed-outline" },
-    { id: "team", label: "Team", icon: "people-outline" },
-  ];
-
-  const filteredChannels = channels.filter((channel) => {
-    const matchesSearch =
-      channel.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      channel.description.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory =
-      selectedCategory === "all" || channel.category === selectedCategory;
-    return matchesSearch && matchesCategory;
-  });
-
-  const getCategoryIcon = (category: string) => {
-    switch (category) {
-      case "private":
-        return "lock-closed";
-      case "team":
-        return "people";
-      default:
-        return "globe";
-    }
-  };
-
-  const handleJoinChannel = (channel: Channel) => {
-    if (!isAuthenticated) {
-      Alert.alert("Error", "Please wait for authentication");
-      return;
-    }
-
-    if (!isConnected) {
-      Alert.alert("Error", "Not connected to server");
-      return;
-    }
-
-    try {
-      console.log("🔌 Joining channel:", channel.name);
-
-      sendMessage({
-        type: MessageType.JOIN_CHANNEL,
-        payload: {
-          channelId: channel.id,
-          user: { userId, username },
-        },
-        timestamp: Date.now(),
-      });
-
-      setUserChannels((prev) => new Set(prev).add(channel.id));
-      setChannels(
-        channels.map((c) =>
-          c.id === channel.id ? { ...c, isActive: true } : c,
-        ),
-      );
-
-      // Navigate to channel message screen
-      setTimeout(() => {
-        router.push({
-          pathname: `/messages/${channel.id}`,
-          params: {
-            type: "channel",
-            name: channel.name,
-            description: channel.description || "",
-            memberCount: channel.members?.toString() || "0",
-          },
-        });
-      }, 300);
-    } catch (error) {
-      console.error("❌ Failed to join channel:", error);
-      Alert.alert("Error", "Failed to join channel");
-    }
-  };
-
-  const handleLeaveChannel = async (channel: Channel) => {
-    if (!isConnected) {
-      Alert.alert("Error", "Not connected to server");
-      return;
-    }
-
-    try {
-      sendMessage({
-        type: MessageType.LEAVE_CHANNEL,
-        payload: {
-          channelId: channel.id,
-        },
-        timestamp: Date.now(),
-      });
-
-      setUserChannels((prev) => {
-        const next = new Set(prev);
-        next.delete(channel.id);
-        return next;
-      });
-
-      setChannels(
-        channels.map((c) =>
-          c.id === channel.id ? { ...c, isActive: false } : c,
-        ),
-      );
-    } catch (error) {
-      console.error("Failed to leave channel:", error);
-      Alert.alert("Error", "Failed to leave channel");
-    }
+  const handleChannelCreated = () => {
+    reloadData();
   };
 
   const handleChannelPress = (channel: Channel) => {
     if (channel.isActive) {
-      navigation.navigate("MessageScreen", {
-        conversationId: channel.id,
-        type: "channel",
-        name: channel.name,
-        memberCount: channel.members,
-        description: channel.description,
-      });
+      handleJoinChannel(channel);
     } else {
       handleJoinChannel(channel);
     }
@@ -302,16 +69,16 @@ export default function ChannelsScreen({ navigation }: any) {
                   className={`w-14 h-14 ${item.color} rounded-2xl items-center justify-center shadow-lg`}
                 >
                   <Ionicons
-                    name={getCategoryIcon(item.category)}
+                    name={getCategoryIcon(item.category) as any}
                     size={26}
                     color="white"
                   />
                 </View>
 
-                {item.unreadCount! > 0 && (
+                {!!item.unreadCount && item.unreadCount > 0 && (
                   <View className="absolute -top-1 -right-1 bg-red-500 rounded-full min-w-[20px] h-5 items-center justify-center px-1.5 border-2 border-slate-900">
                     <Text className="text-white text-xs font-bold">
-                      {item.unreadCount! > 99 ? "99+" : item.unreadCount}
+                      {formatUnreadCount(item.unreadCount)}
                     </Text>
                   </View>
                 )}
@@ -337,7 +104,6 @@ export default function ChannelsScreen({ navigation }: any) {
                 <Text className="text-slate-400 text-sm leading-5 mb-2">
                   {item.description}
                 </Text>
-
                 {item.lastActivity && (
                   <Text className="text-slate-500 text-xs">
                     Last activity: {item.lastActivity}
@@ -389,7 +155,6 @@ export default function ChannelsScreen({ navigation }: any) {
                   : "bg-gradient-to-r from-blue-500 to-blue-600"
               }`}
               activeOpacity={0.8}
-              disabled={!isConnected}
               onPress={(e) => {
                 e.stopPropagation();
                 item.isActive
@@ -444,8 +209,6 @@ export default function ChannelsScreen({ navigation }: any) {
               {filteredChannels.length} available
             </Text>
           </View>
-
-          {/* Create Channel Button */}
           <TouchableOpacity
             className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl items-center justify-center shadow-lg shadow-blue-500/30"
             onPress={() => setShowCreateModal(true)}
@@ -472,7 +235,7 @@ export default function ChannelsScreen({ navigation }: any) {
           )}
         </View>
       </View>
-
+      
       <View className="border-b border-slate-800/50">
         <ScrollView
           horizontal
@@ -480,41 +243,41 @@ export default function ChannelsScreen({ navigation }: any) {
           className="px-6 py-5"
           contentContainerClassName="gap-3"
         >
-          {categories.map((category) => (
-            <TouchableOpacity
-              key={category.id}
-              onPress={() => setSelectedCategory(category.id as any)}
-              className={`px-5 py-3 rounded-2xl flex-row items-center gap-2.5 ${
-                selectedCategory === category.id
-                  ? "bg-gradient-to-r from-blue-500 to-blue-600 shadow-lg shadow-blue-500/30"
-                  : "bg-slate-900/50 backdrop-blur-sm border border-slate-800/50"
-              }`}
-              activeOpacity={0.7}
-            >
-              <Ionicons
-                name={category.icon as any}
-                size={18}
-                color={selectedCategory === category.id ? "white" : "#64748b"}
-              />
-              <Text
-                className={`font-semibold text-sm ${
-                  selectedCategory === category.id
-                    ? "text-white"
-                    : "text-slate-400"
+          {CHANNEL_CATEGORIES.map((cat) => {
+            const isActive = selectedCategory === cat.id;
+            return (
+              <TouchableOpacity
+                key={cat.id}
+                onPress={() => setSelectedCategory(cat.id)}
+                className={`px-5 py-3 rounded-2xl flex-row items-center gap-2.5 ${
+                  isActive
+                    ? "bg-gradient-to-r from-blue-500 to-blue-600 shadow-lg shadow-blue-500/30"
+                    : "bg-slate-900/50 backdrop-blur-sm border border-slate-800/50"
                 }`}
+                activeOpacity={0.7}
               >
-                {category.label}
-              </Text>
-
-              {selectedCategory === category.id && (
-                <View className="ml-1 bg-white/20 rounded-full px-2 py-0.5">
-                  <Text className="text-white text-xs font-bold">
-                    {filteredChannels.length}
-                  </Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          ))}
+                <Ionicons
+                  name={cat.icon as any}
+                  size={18}
+                  color={isActive ? "white" : "#64748b"}
+                />
+                <Text
+                  className={`font-semibold text-sm ${
+                    isActive ? "text-white" : "text-slate-400"
+                  }`}
+                >
+                  {cat.label}
+                </Text>
+                {isActive && (
+                  <View className="ml-1 bg-white/20 rounded-full px-2 py-0.5">
+                    <Text className="text-white text-xs font-bold">
+                      {filteredChannels.length}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            );
+          })}
         </ScrollView>
       </View>
 
@@ -539,7 +302,6 @@ export default function ChannelsScreen({ navigation }: any) {
                 ? "Try adjusting your search"
                 : "Create the first channel to get started"}
             </Text>
-
             {!searchQuery && (
               <TouchableOpacity
                 className="px-6 py-3 bg-blue-500 rounded-2xl"
@@ -552,7 +314,6 @@ export default function ChannelsScreen({ navigation }: any) {
         }
       />
 
-      {/* Create Channel Modal */}
       <CreateChannelModal
         visible={showCreateModal}
         onClose={() => setShowCreateModal(false)}

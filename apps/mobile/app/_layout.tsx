@@ -1,93 +1,53 @@
-import "react-native-url-polyfill/auto";
 import { useEffect } from "react";
 import { Stack, useRouter, useSegments } from "expo-router";
 import "./global.css";
-import { AuthProvider } from "@/context/auth-context";
+import { AuthProvider } from "@/context/AuthContext";
 import { useWebSocketStore } from "@/store/useWebSocketStore";
 import { useAuth } from "@/hooks/useAuth";
-import { Poppins_600SemiBold, useFonts } from "@expo-google-fonts/poppins";
 import * as SplashScreen from "expo-splash-screen";
 
 SplashScreen.preventAutoHideAsync();
 
 function RootLayoutNav() {
-  const { session, loading } = useAuth();
+  const { user, isLoading } = useAuth();
   const segments = useSegments();
   const router = useRouter();
   const { initializeWebSocket, cleanup, isConnected } = useWebSocketStore();
 
-  const [fontsLoaded] = useFonts({
-    Poppins_600SemiBold,
-  });
-
-  // Hide splash screen when fonts are loaded
   useEffect(() => {
-    if (fontsLoaded) {
-      SplashScreen.hideAsync();
-    }
-  }, [fontsLoaded]);
-
-  // Initialize WebSocket with presence tracking
-  useEffect(() => {
-    if (session?.user?.id && session?.access_token) {
-      console.log(
-        "🔌 Initializing WebSocket with presence tracking for user:",
-        session.user.id,
-      );
+    if (user?.id) {
       initializeWebSocket();
 
       return () => {
-        console.log("👋 Cleaning up WebSocket connection");
+        console.log("Cleaning up WebSocket connection");
         cleanup();
       };
     }
-  }, [session?.user?.id, session?.access_token]);
+  }, [user?.id]);
 
-  // Log WebSocket connection status
   useEffect(() => {
     if (isConnected) {
-      console.log("✅ WebSocket connected - user is now online");
+      console.log("webSocket connected - user now online");
     } else {
-      console.log("🔴 WebSocket disconnected - user is offline");
+      console.log("webSocket disconnected - user offline");
     }
   }, [isConnected]);
 
-  // Navigation logic
   useEffect(() => {
-    if (loading || !fontsLoaded) {
-      console.log("⏳ Still loading, skipping navigation");
-      return;
-    }
-
+    if (isLoading) return;
+    
     const inAuthGroup = segments[0] === "(auth)";
 
-    if (!session && !inAuthGroup) {
-      console.log("🔒 No session, redirecting to login");
+    if (!user && !inAuthGroup) {
+      console.log("🔒 No user, redirecting to login");
       router.replace("/(auth)/login");
-    } else if (session && inAuthGroup) {
-      console.log("✅ Session exists, redirecting to tabs");
+    } else if (user && inAuthGroup) {
+      console.log("✅ User exists, redirecting to tabs");
       router.replace("/(tabs)");
-    } else {
-      console.log("📍 Navigation state:", {
-        session: !!session,
-        inAuthGroup,
-        segments,
-      });
     }
-  }, [session, loading, fontsLoaded, segments]);
+  }, [user, isLoading, segments]);
 
-  // Don't render until fonts are loaded
-  if (!fontsLoaded) {
-    return null;
-  }
-
-  return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="index" />
-      <Stack.Screen name="(auth)" />
-      <Stack.Screen name="(tabs)" />
-    </Stack>
-  );
+  return <Stack screenOptions={{ headerShown: false }} />;
 }
 
 export default function RootLayout() {

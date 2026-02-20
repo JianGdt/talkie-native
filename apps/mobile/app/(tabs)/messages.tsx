@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -6,243 +6,156 @@ import {
   TouchableOpacity,
   FlatList,
   ActivityIndicator,
-  Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useAuth } from "@/hooks/useAuth";
-import {
-  Conversation,
-  conversationService,
-} from "@/api/services/conversationServices";
+import { useRouter } from "expo-router";
+import { getUsersAvatar, getUsersName } from "@/utils/conversation";
 import UserSearchModal from "@/components/modal/UserSearch";
+import type { Conversation } from "@/api/services/conversationServices";
+import { useConversations } from "@/hooks/useConversation";
+import { formatRelativeTime, formatUnreadCount } from "@/utils/formats";
+import { MESSAGE_FILTERS, STATUS_COLORS } from "@/constant/chats";
 
-type FilterType = "all" | "direct" | "groups";
+export default function MessageScreen() {
+  const router = useRouter();
+  const {
+    filteredConversations,
+    loading,
+    refreshing,
+    searchQuery,
+    selectedFilter,
+    setSearchQuery,
+    setSelectedFilter,
+    fetchConversations,
+    handleRefresh,
+  } = useConversations();
 
-export default function MessageScreen({ navigation }: any) {
-  const { session } = useAuth();
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedFilter, setSelectedFilter] = useState<FilterType>("all");
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [showUserSearch, setShowUserSearch] = useState(false);
 
-  useEffect(() => {
-    if (session?.user?.id) {
-      fetchConversations();
-    }
-  }, [session?.user?.id]);
-
-  const fetchConversations = async () => {
-    try {
-      setLoading(true);
-      const data = await conversationService.getConversations(
-        session?.user?.id!,
-        session?.access_token,
-      );
-      setConversations(data);
-    } catch (error) {
-      console.error("Failed to fetch conversations:", error);
-      Alert.alert("Error", "Failed to load conversations");
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
-
-  const handleRefresh = () => {
-    setRefreshing(true);
-    fetchConversations();
-  };
-
   const handleUserSelect = (conversationId: string, userName: string) => {
-    // Navigate to the new conversation
-    navigation.navigate("MessageScreen", {
-      conversationId,
-      type: "direct",
-      name: userName,
+    router.push({
+      pathname: "/messages/[id]",
+      params: { id: conversationId, type: "direct", name: userName },
     });
-
-    // Refresh conversations list
     fetchConversations();
-  };
-
-  const filteredConversations = conversations.filter((conv) => {
-    const matchesSearch =
-      conv.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      conv.participants.some((p) =>
-        p.name.toLowerCase().includes(searchQuery.toLowerCase()),
-      );
-
-    const matchesFilter =
-      selectedFilter === "all" ||
-      (selectedFilter === "direct" && conv.type === "direct") ||
-      (selectedFilter === "groups" && conv.type === "group");
-
-    return matchesSearch && matchesFilter;
-  });
-
-  const getConversationName = (conv: Conversation) => {
-    if (conv.type === "direct" && conv.participants.length > 0) {
-      return conv.participants[0].name;
-    }
-    return conv.name || "Unnamed Group";
-  };
-
-  const getConversationAvatar = (conv: Conversation) => {
-    if (conv.type === "direct" && conv.participants.length > 0) {
-      return conv.participants[0].name
-        .split(" ")
-        .map((n) => n[0])
-        .join("")
-        .toUpperCase();
-    }
-    return (
-      conv.name
-        ?.split(" ")
-        .map((n) => n[0])
-        .join("")
-        .toUpperCase() || "G"
-    );
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "online":
-        return "bg-emerald-400";
-      case "away":
-        return "bg-amber-400";
-      default:
-        return "bg-slate-600";
-    }
-  };
-
-  const formatTime = (timestamp?: number) => {
-    if (!timestamp) return "";
-
-    const now = Date.now();
-    const diff = now - timestamp;
-    const seconds = Math.floor(diff / 1000);
-    const minutes = Math.floor(seconds / 60);
-    const hours = Math.floor(minutes / 60);
-    const days = Math.floor(hours / 24);
-
-    if (days > 0) return `${days}d ago`;
-    if (hours > 0) return `${hours}h ago`;
-    if (minutes > 0) return `${minutes}m ago`;
-    return "Just now";
   };
 
   const handleConversationPress = (conv: Conversation) => {
-    navigation.navigate("MessageScreen", {
-      conversationId: conv.id,
-      type: conv.type,
-      name: getConversationName(conv),
-      participants: conv.participants,
+    router.push({
+      pathname: "/messages/[id]",
+      params: { id: conv.id, type: conv.type, name: getUsersName(conv) },
     });
   };
 
-  const renderConversation = ({ item }: { item: Conversation }) => (
-    <TouchableOpacity
-      className="mb-3"
-      activeOpacity={0.7}
-      onPress={() => handleConversationPress(item)}
-    >
-      <View
-        className={`bg-slate-900/50 backdrop-blur-xl rounded-3xl overflow-hidden border ${
-          item.is_pinned ? "border-blue-500/50" : "border-slate-800/50"
-        }`}
+  const renderConversation = ({ item }: { item: Conversation }) => {
+    const name = getUsersName(item);
+    const avatar = getUsersAvatar(item);
+    const time = formatRelativeTime(item.last_message?.timestamp);
+    const unread = item.unread_count;
+    const statusColor =
+      item.type === "direct" && item.participants[0]
+        ? (STATUS_COLORS[item.participants[0].status] ?? STATUS_COLORS.offline)
+        : null;
+
+    return (
+      <TouchableOpacity
+        className="mb-3"
+        activeOpacity={0.7}
+        onPress={() => handleConversationPress(item)}
       >
-        <View className="p-4">
-          <View className="flex-row items-center gap-4">
-            <View className="relative">
-              <View
-                className={`w-14 h-14 rounded-2xl items-center justify-center ${
-                  item.type === "direct"
-                    ? "bg-gradient-to-br from-cyan-500 to-blue-500"
-                    : "bg-gradient-to-br from-purple-500 to-pink-500"
-                }`}
-              >
-                <Text className="text-white text-lg font-bold">
-                  {getConversationAvatar(item)}
-                </Text>
-              </View>
-
-              {item.type === "direct" && item.participants[0] && (
+        <View
+          className={`bg-slate-900/50 backdrop-blur-xl rounded-3xl overflow-hidden border ${
+            item.is_pinned ? "border-blue-500/50" : "border-slate-800/50"
+          }`}
+        >
+          <View className="p-4">
+            <View className="flex-row items-center gap-4">
+              <View className="relative">
                 <View
-                  className={`absolute -bottom-0.5 -right-0.5 w-4 h-4 ${getStatusColor(
-                    item.participants[0].status,
-                  )} rounded-full border-2 border-slate-900`}
-                />
-              )}
-
-              {item.is_pinned && (
-                <View className="absolute -top-1 -left-1 w-5 h-5 bg-blue-500 rounded-full items-center justify-center">
-                  <Ionicons name="pin" size={12} color="white" />
-                </View>
-              )}
-
-              {item.type === "group" && (
-                <View className="absolute -bottom-1 -right-1 bg-slate-800 rounded-full px-1.5 py-0.5 border border-slate-700">
-                  <Text className="text-white text-xs font-bold">
-                    {item.participants.length}
-                  </Text>
-                </View>
-              )}
-            </View>
-
-            <View className="flex-1">
-              <View className="flex-row items-center justify-between mb-1">
-                <View className="flex-row items-center gap-2 flex-1">
-                  <Text className="text-white text-base font-bold tracking-tight">
-                    {getConversationName(item)}
-                  </Text>
-                  {item.is_muted && (
-                    <Ionicons name="volume-mute" size={16} color="#64748b" />
-                  )}
-                </View>
-                <Text className="text-slate-500 text-xs">
-                  {formatTime(item.last_message?.timestamp)}
-                </Text>
-              </View>
-
-              <View className="flex-row items-center justify-between">
-                <Text
-                  className={`flex-1 text-sm ${
-                    item.last_message?.isRead || item.unread_count === 0
-                      ? "text-slate-400"
-                      : "text-white font-semibold"
+                  className={`w-14 h-14 rounded-2xl items-center justify-center ${
+                    item.type === "direct"
+                      ? "bg-gradient-to-br from-cyan-500 to-blue-500"
+                      : "bg-gradient-to-br from-purple-500 to-pink-500"
                   }`}
-                  numberOfLines={1}
                 >
-                  {item.type === "group" && item.last_message?.sender && (
-                    <Text className="text-slate-500">
-                      {item.last_message.sender}:{" "}
-                    </Text>
-                  )}
-                  {item.last_message?.content || "No messages yet"}
-                </Text>
+                  <Text className="text-white text-lg font-bold">{avatar}</Text>
+                </View>
 
-                {item.unread_count > 0 && (
-                  <View className="ml-3 bg-blue-500 rounded-full min-w-[24px] h-6 items-center justify-center px-2">
+                {statusColor && (
+                  <View
+                    className={`absolute -bottom-0.5 -right-0.5 w-4 h-4 ${statusColor} rounded-full border-2 border-slate-900`}
+                  />
+                )}
+
+                {item.is_pinned && (
+                  <View className="absolute -top-1 -left-1 w-5 h-5 bg-blue-500 rounded-full items-center justify-center">
+                    <Ionicons name="pin" size={12} color="white" />
+                  </View>
+                )}
+
+                {item.type === "group" && (
+                  <View className="absolute -bottom-1 -right-1 bg-slate-800 rounded-full px-1.5 py-0.5 border border-slate-700">
                     <Text className="text-white text-xs font-bold">
-                      {item.unread_count > 99 ? "99+" : item.unread_count}
+                      {item.participants.length}
                     </Text>
                   </View>
                 )}
               </View>
 
-              {item.type === "group" && item.participants.length > 0 && (
-                <Text className="text-slate-500 text-xs mt-1" numberOfLines={1}>
-                  👥 {item.participants.map((p) => p.name).join(", ")}
-                </Text>
-              )}
+              <View className="flex-1">
+                <View className="flex-row items-center justify-between mb-1">
+                  <View className="flex-row items-center gap-2 flex-1">
+                    <Text className="text-white text-base font-bold tracking-tight">
+                      {name}
+                    </Text>
+                    {item.is_muted && (
+                      <Ionicons name="volume-mute" size={16} color="#64748b" />
+                    )}
+                  </View>
+                  <Text className="text-slate-500 text-xs">{time}</Text>
+                </View>
+
+                <View className="flex-row items-center justify-between">
+                  <Text
+                    className={`flex-1 text-sm ${
+                      item.last_message?.isRead || unread === 0
+                        ? "text-slate-400"
+                        : "text-white font-semibold"
+                    }`}
+                    numberOfLines={1}
+                  >
+                    {item.type === "group" && item.last_message?.sender && (
+                      <Text className="text-slate-500">
+                        {item.last_message.sender}:{" "}
+                      </Text>
+                    )}
+                    {item.last_message?.content || "No messages yet"}
+                  </Text>
+
+                  {unread > 0 && (
+                    <View className="ml-3 bg-blue-500 rounded-full min-w-[24px] h-6 items-center justify-center px-2">
+                      <Text className="text-white text-xs font-bold">
+                        {formatUnreadCount(unread)}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+
+                {item.type === "group" && item.participants.length > 0 && (
+                  <Text
+                    className="text-slate-500 text-xs mt-1"
+                    numberOfLines={1}
+                  >
+                    👥 {item.participants.map((p) => p.name).join(", ")}
+                  </Text>
+                )}
+              </View>
             </View>
           </View>
         </View>
-      </View>
-    </TouchableOpacity>
-  );
+      </TouchableOpacity>
+    );
+  };
 
   if (loading) {
     return (
@@ -260,6 +173,7 @@ export default function MessageScreen({ navigation }: any) {
         <View className="absolute bottom-0 left-0 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl" />
       </View>
 
+      {/* Header */}
       <View className="bg-slate-900/80 backdrop-blur-xl px-6 pt-16 pb-6 border-b border-slate-800/50">
         <View className="flex-row items-center justify-between mb-6">
           <View>
@@ -270,8 +184,6 @@ export default function MessageScreen({ navigation }: any) {
               {filteredConversations.length} conversations
             </Text>
           </View>
-
-          {/* New Message Button - Opens User Search */}
           <TouchableOpacity
             className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl items-center justify-center shadow-lg shadow-blue-500/30"
             onPress={() => setShowUserSearch(true)}
@@ -300,66 +212,35 @@ export default function MessageScreen({ navigation }: any) {
       </View>
 
       <View className="flex-row px-6 py-4 gap-3 border-b border-slate-800/50">
-        <TouchableOpacity
-          onPress={() => setSelectedFilter("all")}
-          className={`px-5 py-2.5 rounded-2xl ${
-            selectedFilter === "all"
-              ? "bg-gradient-to-r from-blue-500 to-blue-600 shadow-lg shadow-blue-500/30"
-              : "bg-slate-900/50 border border-slate-800/50"
-          }`}
-        >
-          <Text
-            className={`font-semibold text-sm ${
-              selectedFilter === "all" ? "text-white" : "text-slate-400"
-            }`}
-          >
-            All
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          onPress={() => setSelectedFilter("direct")}
-          className={`px-5 py-2.5 rounded-2xl flex-row items-center gap-2 ${
-            selectedFilter === "direct"
-              ? "bg-gradient-to-r from-blue-500 to-blue-600 shadow-lg shadow-blue-500/30"
-              : "bg-slate-900/50 border border-slate-800/50"
-          }`}
-        >
-          <Ionicons
-            name="person"
-            size={16}
-            color={selectedFilter === "direct" ? "white" : "#64748b"}
-          />
-          <Text
-            className={`font-semibold text-sm ${
-              selectedFilter === "direct" ? "text-white" : "text-slate-400"
-            }`}
-          >
-            Direct
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          onPress={() => setSelectedFilter("groups")}
-          className={`px-5 py-2.5 rounded-2xl flex-row items-center gap-2 ${
-            selectedFilter === "groups"
-              ? "bg-gradient-to-r from-blue-500 to-blue-600 shadow-lg shadow-blue-500/30"
-              : "bg-slate-900/50 border border-slate-800/50"
-          }`}
-        >
-          <Ionicons
-            name="people"
-            size={16}
-            color={selectedFilter === "groups" ? "white" : "#64748b"}
-          />
-          <Text
-            className={`font-semibold text-sm ${
-              selectedFilter === "groups" ? "text-white" : "text-slate-400"
-            }`}
-          >
-            Groups
-          </Text>
-        </TouchableOpacity>
+        {MESSAGE_FILTERS.map((filter) => {
+          const isActive = selectedFilter === filter.id;
+          return (
+            <TouchableOpacity
+              key={filter.id}
+              onPress={() => setSelectedFilter(filter.id)}
+              className={`px-5 py-2.5 rounded-2xl flex-row items-center gap-2 ${
+                isActive
+                  ? "bg-gradient-to-r from-blue-500 to-blue-600 shadow-lg shadow-blue-500/30"
+                  : "bg-slate-900/50 border border-slate-800/50"
+              }`}
+            >
+              {filter.id !== "all" && (
+                <Ionicons
+                  name={filter.icon as any}
+                  size={16}
+                  color={isActive ? "white" : "#64748b"}
+                />
+              )}
+              <Text
+                className={`font-semibold text-sm ${
+                  isActive ? "text-white" : "text-slate-400"
+                }`}
+              >
+                {filter.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
       <FlatList
@@ -383,7 +264,6 @@ export default function MessageScreen({ navigation }: any) {
                 ? "No conversations match your search"
                 : "Start a new conversation to get started"}
             </Text>
-
             {!searchQuery && (
               <TouchableOpacity
                 className="px-6 py-3 bg-blue-500 rounded-2xl"
@@ -396,7 +276,6 @@ export default function MessageScreen({ navigation }: any) {
         }
       />
 
-      {/* User Search Modal */}
       <UserSearchModal
         visible={showUserSearch}
         onClose={() => setShowUserSearch(false)}

@@ -124,22 +124,4 @@ export default async function userRoutes(fastify: FastifyInstance) {
       }
     },
   );
-
-  fastify.get<{ Params: UserParams }>(
-    "/api/users/:userId/channels",
-    async (request, reply) => {
-      try {
-        const { userId } = request.params;
-
-        const channels = await channelService.getUserChannels(userId);
-
-        return reply.send(channels);
-      } catch (error) {
-        return reply.status(500).send({
-          error: "Failed to fetch user channels",
-          message: error instanceof Error ? error.message : "Unknown error",
-        });
-      }
-    },
-  );
 }

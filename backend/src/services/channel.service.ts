@@ -240,36 +240,12 @@ export class ChannelService {
   }
 
   async getUserChannels(userId: string) {
-    const query = `
-    SELECT 
-      c.id,
-      c.name,
-      c.description,
-      c.category,
-      c.created_at,
-      c.updated_at,
-      my_membership.joined_at as user_joined_at,
-      COUNT(DISTINCT cm.user_id)::int as member_count,
-      COALESCE(
-        json_agg(
-          json_build_object(
-            'id', up.user_id,
-            'username', up.username,
-            'avatar', up.avatar_url
-          )
-          ORDER BY cm.joined_at DESC
-        ) FILTER (WHERE cm.user_id IS NOT NULL),
-        '[]'
-      ) as active_users
-    FROM channels c
-    JOIN channel_members my_membership ON c.id = my_membership.channel_id AND my_membership.user_id = $1
-    LEFT JOIN channel_members cm ON c.id = cm.channel_id
-    LEFT JOIN user_profiles up ON cm.user_id = up.user_id
-    GROUP BY c.id, c.name, c.description, c.category, c.created_at, c.updated_at, my_membership.joined_at
-    ORDER BY my_membership.joined_at DESC
-  `;
-
-    const result = await this.db.query(query, [userId]);
+    const result = await this.db.query(
+      `SELECT c.* FROM channels c
+     INNER JOIN channel_members cm ON c.id = cm.channel_id
+     WHERE cm.user_id = $1`,
+      [userId],
+    );
     return result.rows;
   }
 }

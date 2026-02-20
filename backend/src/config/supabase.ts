@@ -6,8 +6,8 @@ export const supabaseAdmin = createClient(
   env.SUPABASE_SERVICE_ROLE_KEY,
   {
     auth: {
-      autoRefreshToken: false,
-      persistSession: false,
+      autoRefreshToken: true,
+      persistSession: true,
     },
   },
 );

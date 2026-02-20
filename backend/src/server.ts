@@ -9,6 +9,7 @@ import conversationRoutes from "./routes/conversation.routes";
 import channelRoutes from "./routes/channel.routes";
 import channelManagerService from "./services/channel-manager.service";
 import { ActiveUserService } from "./services/active.service";
+import websocket from "@fastify/websocket";
 
 const fastify = Fastify({
   logger: {
@@ -42,6 +43,8 @@ async function start() {
     });
 
     await fastify.register(databasePlugin);
+
+    await fastify.register(websocket);
 
     // Health check endpoint
     fastify.get("/health", async (request, reply) => {
