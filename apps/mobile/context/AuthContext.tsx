@@ -107,22 +107,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const redirectTo =
-    Platform.OS === "web" ? window.location.origin : Linking.createURL("/");
-
   const signInWithGoogle = async () => {
     try {
       if (Platform.OS === "web") {
+        const redirectTo = window.location.origin;
         const { error } = await supabase.auth.signInWithOAuth({
           provider: "google",
-          options: {
-            redirectTo,
-            skipBrowserRedirect: true,
-          },
+          options: { redirectTo },
         });
         if (error) throw error;
       } else {
-        // Native (iOS/Android): use expo-auth-session
         await promptAsync();
       }
     } catch (error) {
