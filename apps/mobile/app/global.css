@@ -1,2 +1,25 @@
 @import "tailwindcss";
 @import "uniwind";
+
+@theme {
+  --app-max-width: 480px;
+}
+
+body {
+  align-self: center;
+  background-color: #121212;
+  max-width: var(--app-max-width);
+  width: 100%;
+  position: relative;
+  --color: #ff9494;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  flex: 1;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  min-height: inherit;
+  margin: auto;
+}
