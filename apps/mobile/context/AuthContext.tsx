@@ -48,22 +48,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log("🔐 Auth event:", event, session?.user?.id);
-      if (event === "SIGNED_IN" && session?.user) {
+      if (
+        (event === "SIGNED_IN" || event === "INITIAL_SESSION") &&
+        session?.user
+      ) {
         try {
           let profile = await fetchUserProfile(session.user.id);
-          console.log("📦 Profile fetched:", profile);
-
-          if (!profile) {
-            console.log("Creating new profile...");
-            profile = await createGoogleUserProfile(session.user);
-          }
+          if (!profile) profile = await createGoogleUserProfile(session.user);
           setUser(profile);
         } catch (err) {
           console.error("❌ Error in onAuthStateChange:", err);
         } finally {
           setLoading(false);
         }
-      } else if (event === "SIGNED_OUT") {
+      } else if (
+        event === "SIGNED_OUT" ||
+        (event === "INITIAL_SESSION" && !session)
+      ) {
         setUser(null);
         setLoading(false);
       }
