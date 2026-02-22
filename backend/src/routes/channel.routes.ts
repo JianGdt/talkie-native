@@ -1,21 +1,6 @@
 import { FastifyInstance } from "fastify";
 import { ChannelService } from "../services/channel.service";
 
-interface ChannelParams {
-  channelId: string;
-}
-
-interface CreateChannelBody {
-  name: string;
-  description?: string;
-  category?: "public" | "private" | "team";
-}
-
-interface GetMessagesQuery {
-  limit?: string;
-  before?: string;
-}
-
 export default async function channelRoutes(fastify: FastifyInstance) {
   const channelService = new ChannelService(fastify.db);
 
@@ -31,7 +16,7 @@ export default async function channelRoutes(fastify: FastifyInstance) {
     }
   });
 
-  fastify.get<{ Params: ChannelParams }>(
+  fastify.get<{ Params: ChannelRouteTypes.ChannelParams }>(
     "/api/channels/:channelId",
     async (request, reply) => {
       try {
@@ -54,7 +39,7 @@ export default async function channelRoutes(fastify: FastifyInstance) {
     },
   );
 
-  fastify.post<{ Body: CreateChannelBody }>(
+  fastify.post<{ Body: ChannelRouteTypes.CreateChannelBody }>(
     "/api/channels",
     async (request, reply) => {
       try {
@@ -83,8 +68,8 @@ export default async function channelRoutes(fastify: FastifyInstance) {
   );
 
   fastify.get<{
-    Params: ChannelParams;
-    Querystring: GetMessagesQuery;
+    Params: ChannelRouteTypes.ChannelParams;
+    Querystring: ChannelRouteTypes.GetMessagesQuery;
   }>("/api/channels/:channelId/messages", async (request, reply) => {
     try {
       const { channelId } = request.params;
@@ -108,7 +93,7 @@ export default async function channelRoutes(fastify: FastifyInstance) {
     }
   });
 
-  fastify.get<{ Params: ChannelParams }>(
+  fastify.get<{ Params: ChannelRouteTypes.ChannelParams }>(
     "/api/channels/:channelId/members",
     async (request, reply) => {
       try {
@@ -126,8 +111,8 @@ export default async function channelRoutes(fastify: FastifyInstance) {
   );
 
   fastify.patch<{
-    Params: ChannelParams;
-    Body: Partial<CreateChannelBody>;
+    Params: ChannelRouteTypes.ChannelParams;
+    Body: Partial<ChannelRouteTypes.CreateChannelBody>;
   }>("/api/channels/:channelId", async (request, reply) => {
     try {
       const { channelId } = request.params;
@@ -150,7 +135,7 @@ export default async function channelRoutes(fastify: FastifyInstance) {
     }
   });
 
-  fastify.delete<{ Params: ChannelParams }>(
+  fastify.delete<{ Params: ChannelRouteTypes.ChannelParams }>(
     "/api/channels/:channelId",
     async (request, reply) => {
       try {
@@ -167,19 +152,15 @@ export default async function channelRoutes(fastify: FastifyInstance) {
     },
   );
 
-  fastify.get<{ Params: { userId: string } }>(
-    "/api/users/:userId/channels",
-    async (request, reply) => {
-      try {
-        const { userId } = request.params;
-        const channels = await channelService.getUserChannels(userId);
-        return reply.send(channels);
-      } catch (error) {
-        return reply.status(500).send({
-          error: "Failed to fetch user channels",
-          message: error instanceof Error ? error.message : "Unknown error",
-        });
-      }
-    },
-  );
+  fastify.get("/api/users/me/channels", async (request, reply) => {
+    try {
+      const channels = await channelService.getUserChannels(request.userId); 
+      return reply.send(channels);
+    } catch (error) {
+      return reply.status(500).send({
+        error: "Failed to fetch user channels",
+        message: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  });
 }

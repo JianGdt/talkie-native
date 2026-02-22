@@ -2,20 +2,11 @@ import { FastifyInstance } from "fastify";
 import { UserService } from "../services/user.service";
 import { ChannelService } from "../services/channel.service";
 
-interface SearchQuery {
-  q?: string;
-  limit?: string;
-}
-
-interface UserParams {
-  userId: string;
-}
-
 export default async function userRoutes(fastify: FastifyInstance) {
   const userService = new UserService(fastify.db);
   const channelService = new ChannelService(fastify.db);
 
-  fastify.get<{ Querystring: SearchQuery }>(
+  fastify.get<{ Querystring: UserRouteTypes.SearchQuery }>(
     "/api/users/search",
     async (request, reply) => {
       try {
@@ -40,7 +31,7 @@ export default async function userRoutes(fastify: FastifyInstance) {
     },
   );
 
-  fastify.get<{ Params: UserParams }>(
+  fastify.get<{ Params: UserRouteTypes.UserParams }>(
     "/api/users/:userId",
     async (request, reply) => {
       try {
@@ -94,7 +85,7 @@ export default async function userRoutes(fastify: FastifyInstance) {
     }
   });
 
-  fastify.patch<{ Params: UserParams }>(
+  fastify.patch<{ Params: UserRouteTypes.UserParams }>(
     "/api/users/:userId",
     async (request, reply) => {
       try {

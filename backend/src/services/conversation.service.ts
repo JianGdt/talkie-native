@@ -284,4 +284,13 @@ export class ConversationService {
     const result = await this.db.query(query, [conversationId]);
     return result.rows;
   }
+
+  async isParticipant(conversationId: string, userId: string): Promise<boolean> {
+  const result = await this.db.query(
+    `SELECT 1 FROM conversation_participants
+     WHERE conversation_id = $1 AND user_id = $2`,
+    [conversationId, userId],
+  );
+  return result.rows.length > 0;
+}
 }

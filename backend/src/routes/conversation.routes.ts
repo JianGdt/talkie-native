@@ -1,72 +1,51 @@
 import { FastifyInstance } from "fastify";
 import { ConversationService } from "../services/conversation.service";
+import { authenticate } from "../middleware/authenticate";
+import { ConversationParams, CreateDirectMessageBody, CreateGroupBody, GetMessagesQuery, ToggleMuteBody, TogglePinBody } from "../@types/conversation";
 
-interface ConversationParams {
-  userId: string;
-  conversationId: string;
-}
-
-interface CreateDirectMessageBody {
-  userId: string;
-  otherUserId: string;
-}
-
-interface CreateGroupBody {
-  userId: string;
-  name: string;
-  participantIds: string[];
-}
-
-interface GetMessagesQuery {
-  limit?: string;
-  before?: string;
-}
 
 export default async function conversationRoutes(fastify: FastifyInstance) {
   const conversationService = new ConversationService(fastify.db);
 
-  fastify.get<{ Params: ConversationParams }>(
-    "/api/conversations/:userId",
-    async (request, reply) => {
-      try {
-        const { userId } = request.params;
+  fastify.addHook("preHandler", authenticate);
 
-        const conversations =
-          await conversationService.getUserConversations(userId);
-
-        return reply.send(conversations);
-      } catch (error) {
-        return reply.status(500).send({
-          error: "Failed to fetch conversations",
-          message: error instanceof Error ? error.message : "Unknown error",
-        });
-      }
-    },
-  );
+  fastify.get("/api/conversations", async (request, reply) => {
+    try {
+      const conversations = await conversationService.getUserConversations(
+        request.userId,
+      );
+      return reply.send(conversations);
+    } catch (error) {
+      return reply.status(500).send({
+        error: "Failed to fetch conversations",
+        message: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  });
 
   fastify.post<{ Body: CreateDirectMessageBody }>(
     "/api/conversations/direct",
     async (request, reply) => {
       try {
-        const { userId, otherUserId } = request.body;
+        const { otherUserId } = request.body;
+        const userId = request.userId;
 
-        if (!userId || !otherUserId) {
-          return reply.status(400).send({
-            error: "Missing required fields: userId, otherUserId",
-          });
+        if (!otherUserId) {
+          return reply
+            .status(400)
+            .send({ error: "Missing required field: otherUserId" });
         }
 
         if (userId === otherUserId) {
-          return reply.status(400).send({
-            error: "Cannot create conversation with yourself",
-          });
+          return reply
+            .status(400)
+            .send({ error: "Cannot create conversation with yourself" });
         }
 
         const result = await conversationService.createDirectMessage(
           userId,
           otherUserId,
         );
-
         return reply.send(result);
       } catch (error) {
         return reply.status(500).send({
@@ -81,16 +60,12 @@ export default async function conversationRoutes(fastify: FastifyInstance) {
     "/api/conversations/group",
     async (request, reply) => {
       try {
-        const { userId, name, participantIds } = request.body;
+        const { name, participantIds } = request.body;
+        const userId = request.userId; 
 
-        if (
-          !userId ||
-          !name ||
-          !participantIds ||
-          participantIds.length === 0
-        ) {
+        if (!name || !participantIds || participantIds.length === 0) {
           return reply.status(400).send({
-            error: "Missing required fields: userId, name, participantIds",
+            error: "Missing required fields: name, participantIds",
           });
         }
 
@@ -99,7 +74,6 @@ export default async function conversationRoutes(fastify: FastifyInstance) {
           name,
           participantIds,
         );
-
         return reply.send(result);
       } catch (error) {
         return reply.status(500).send({
@@ -110,47 +84,45 @@ export default async function conversationRoutes(fastify: FastifyInstance) {
     },
   );
 
-  fastify.get<{
-    Params: ConversationParams;
-    Querystring: GetMessagesQuery;
-  }>("/api/conversations/:conversationId/messages", async (request, reply) => {
-    try {
-      const { conversationId } = request.params;
-      const limit = parseInt(request.query.limit || "50");
-      const before = request.query.before
-        ? parseInt(request.query.before)
-        : null;
+  fastify.get<{ Params: ConversationParams; Querystring: GetMessagesQuery }>(
+    "/api/conversations/:conversationId/messages",
+    async (request, reply) => {
+      try {
+        const { conversationId } = request.params;
+        const limit = parseInt(request.query.limit || "50");
+        const before = request.query.before
+          ? parseInt(request.query.before)
+          : null;
 
-      const messages = await conversationService.getConversationMessages(
-        conversationId,
-        limit,
-        before,
-      );
+        const isMember = await conversationService.isParticipant(
+          conversationId,
+          request.userId,
+        );
+        if (!isMember) {
+          return reply.status(403).send({ error: "Access denied" });
+        }
 
-      return reply.send(messages);
-    } catch (error) {
-      return reply.status(500).send({
-        error: "Failed to fetch messages",
-        message: error instanceof Error ? error.message : "Unknown error",
-      });
-    }
-  });
+        const messages = await conversationService.getConversationMessages(
+          conversationId,
+          limit,
+          before,
+        );
+        return reply.send(messages);
+      } catch (error) {
+        return reply.status(500).send({
+          error: "Failed to fetch messages",
+          message: error instanceof Error ? error.message : "Unknown error",
+        });
+      }
+    },
+  );
 
   fastify.post<{ Params: ConversationParams }>(
     "/api/conversations/:conversationId/read",
     async (request, reply) => {
       try {
         const { conversationId } = request.params;
-        const { userId } = request.body as { userId: string };
-
-        if (!userId) {
-          return reply.status(400).send({
-            error: "Missing userId in request body",
-          });
-        }
-
-        await conversationService.markAsRead(conversationId, userId);
-
+        await conversationService.markAsRead(conversationId, request.userId);
         return reply.send({ success: true });
       } catch (error) {
         return reply.status(500).send({
@@ -161,24 +133,17 @@ export default async function conversationRoutes(fastify: FastifyInstance) {
     },
   );
 
-  fastify.post<{ Params: ConversationParams }>(
+  fastify.post<{ Params: ConversationParams; Body: TogglePinBody }>(
     "/api/conversations/:conversationId/pin",
     async (request, reply) => {
       try {
         const { conversationId } = request.params;
-        const { userId, isPinned } = request.body as {
-          userId: string;
-          isPinned: boolean;
-        };
-
-        if (!userId) {
-          return reply.status(400).send({
-            error: "Missing userId in request body",
-          });
-        }
-
-        await conversationService.togglePin(conversationId, userId, isPinned);
-
+        const { isPinned } = request.body;
+        await conversationService.togglePin(
+          conversationId,
+          request.userId,
+          isPinned,
+        );
         return reply.send({ success: true, isPinned });
       } catch (error) {
         return reply.status(500).send({
@@ -189,27 +154,19 @@ export default async function conversationRoutes(fastify: FastifyInstance) {
     },
   );
 
-  fastify.post<{ Params: ConversationParams }>(
+  fastify.post<{ Params: ConversationParams; Body: ToggleMuteBody }>(
     "/api/conversations/:conversationId/mute",
     async (request, reply) => {
       try {
         const { conversationId } = request.params;
-        const { userId, isMuted } = request.body as {
-          userId: string;
-          isMuted: boolean;
-        };
-
-        if (!userId) {
-          return reply.status(400).send({
-            error: "Missing userId in request body",
-          });
-        }
-
-        await conversationService.toggleMute(conversationId, userId, isMuted);
-
+        const { isMuted } = request.body;
+        await conversationService.toggleMute(
+          conversationId,
+          request.userId,
+          isMuted,
+        );
         return reply.send({ success: true, isMuted });
       } catch (error) {
-        fastify.log.error("Error toggling mute:");
         return reply.status(500).send({
           error: "Failed to toggle mute",
           message: error instanceof Error ? error.message : "Unknown error",

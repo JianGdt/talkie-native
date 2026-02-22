@@ -42,69 +42,82 @@ class WebSocketHandler {
   }
 
   async handleConnection(ws: WebSocket, req: FastifyRequest) {
-    const rawUrl = req.url ?? req.raw?.url ?? "";
-    const queryString = rawUrl.includes("?") ? rawUrl.split("?")[1] : "";
-    const params = new URLSearchParams(queryString);
+    const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
-    const userId = params.get("userId");
-    const username = params.get("username");
-    const token = params.get("token") ?? undefined;
-
-    if (!userId || !username) {
-      ws.close(1008, "Missing userId or username");
-      return;
-    }
-
-    const clientConnection: ClientConnection = {
+    connectionManager.addConnection(tempId, {
       ws,
-      userId,
-      username,
+      userId: tempId,
+      username: "unauthenticated",
       isAlive: true,
       isAuthenticated: false,
-    };
+    });
 
-    connectionManager.addConnection(userId, clientConnection);
+    const authTimeout = setTimeout(() => {
+      const conn = connectionManager.getConnection(tempId);
+      if (!conn?.isAuthenticated) {
+        this.sendMessage(ws, {
+          type: MessageType.AUTH_ERROR,
+          payload: { message: "Authentication timeout" },
+          timestamp: Date.now(),
+        });
+        ws.close(1008, "Auth timeout");
+        connectionManager.removeConnection(tempId);
+      }
+    }, 10_000);
 
-    if (token) {
-      await this.authenticateUser(userId, token, ws);
-    } else {
-      this.sendMessage(ws, {
-        type: "__connected",
-        payload: {
-          message: "Connected, send AUTH message with token",
-        },
-        timestamp: Date.now(),
-      });
-    }
-
-    this.setupSocketListeners(userId, ws);
+    this.setupSocketListeners(tempId, ws, authTimeout);
   }
 
-  private setupSocketListeners(userId: string, ws: any) {
+  private setupSocketListeners(
+    tempId: string,
+    ws: WebSocket,
+    authTimeout: ReturnType<typeof setTimeout>,
+  ) {
+    // ✅ currentId lives here as a closure variable
+    let currentId = tempId;
+
     ws.on("message", (message: Buffer) => {
       try {
+        if (message.toString().length > 100_000) {
+          this.sendError(ws, "Message too large");
+          return;
+        }
         const parsed = JSON.parse(message.toString());
-        this.routeMessage(userId, parsed, ws);
+        this.routeMessage(
+          currentId,
+          parsed,
+          ws,
+          authTimeout,
+          (realId) => {
+            currentId = realId;
+          }, // ✅ inline callback updates closure
+        );
       } catch (error) {
-        console.error("❌ Failed to parse message:", error);
         this.sendError(ws, "Invalid message format");
       }
     });
 
-    ws.on("pong", () => {
-      connectionManager.markAlive(userId);
-    });
+    ws.on("pong", () => connectionManager.markAlive(currentId));
 
     ws.on("close", () => {
-      this.handleDisconnect(userId);
+      clearTimeout(authTimeout);
+      this.handleDisconnect(currentId);
     });
 
-    ws.on("error", (error: Error) => {
-      console.error(`🔥 WebSocket error for ${userId}:`, error);
+    ws.on("error", () => {
+      connectionManager.removeConnection(currentId);
     });
   }
 
-  private async authenticateUser(userId: string, token: string, ws: any) {
+  private async authenticateUser(
+    tempId: string,
+    userId: string,
+    username: string,
+    token: string,
+    ws: WebSocket,
+    authTimeout: ReturnType<typeof setTimeout>,
+    onAuthenticated: (realId: string) => void, // ✅
+  ) {
     try {
       const {
         data: { user },
@@ -114,12 +127,9 @@ class WebSocketHandler {
       if (error || !user) {
         this.sendMessage(ws, {
           type: MessageType.AUTH_ERROR,
-          payload: {
-            message: "Invalid or expired token",
-          },
+          payload: { message: "Invalid or expired token" },
           timestamp: Date.now(),
         });
-
         setTimeout(() => ws.close(1008, "Authentication failed"), 1000);
         return;
       }
@@ -127,42 +137,50 @@ class WebSocketHandler {
       if (user.id !== userId) {
         this.sendMessage(ws, {
           type: MessageType.AUTH_ERROR,
-          payload: {
-            message: "UserId mismatch",
-          },
+          payload: { message: "Token mismatch" },
           timestamp: Date.now(),
         });
-
-        setTimeout(() => ws.close(1008, "Authentication failed"), 1000);
+        setTimeout(() => ws.close(1008, "Token mismatch"), 1000);
         return;
       }
 
-      await this.activeUserService!.setUserOnline(userId);
+      clearTimeout(authTimeout);
 
+      const tempConnection = connectionManager.getConnection(tempId);
+      if (!tempConnection) return;
+      connectionManager.removeConnection(tempId);
+
+      const existing = connectionManager.getConnection(userId);
+      if (existing?.ws.readyState === WebSocket.OPEN) {
+        existing.ws.close(1000, "Replaced by new connection");
+      }
+
+      connectionManager.addConnection(userId, {
+        ...tempConnection,
+        userId,
+        username,
+        isAuthenticated: true,
+      });
+
+      // ✅ Update currentId in the closure — all subsequent messages use realUserId
+      onAuthenticated(userId);
+
+      await this.activeUserService!.setUserOnline(userId);
       connectionManager.markAuthenticated(userId, true);
-      const connection = connectionManager.getConnection(userId);
 
       this.sendMessage(ws, {
         type: MessageType.AUTH_SUCCESS,
-        payload: {
-          userId,
-          username: connection?.username,
-          message: "Authentication successful",
-        },
+        payload: { userId, username, message: "Authentication successful" },
         timestamp: Date.now(),
       });
 
       this.broadcastPresenceUpdate(userId, "online");
     } catch (error) {
-      console.error("❌ Authentication error:", error);
       this.sendMessage(ws, {
         type: MessageType.AUTH_ERROR,
-        payload: {
-          message: "Authentication error occurred",
-        },
+        payload: { message: "Authentication error occurred" },
         timestamp: Date.now(),
       });
-
       setTimeout(() => ws.close(1011, "Internal error"), 1000);
     }
   }
@@ -170,50 +188,63 @@ class WebSocketHandler {
   // MESSAGES, WEBSOCKET CYCLE
 
   private routeMessage(
-    userId: string,
+    tempId: string,
     message: WebSocketMessage,
     ws: WebSocket,
+    authTimeout: ReturnType<typeof setTimeout>,
+    onAuthenticated: (realId: string) => void, // ✅
   ) {
-    const connection = connectionManager.getConnection(userId);
-
     if (message.type === MessageType.AUTH || message.type === "AUTH") {
-      const { token } = message.payload;
-      if (token) {
-        this.authenticateUser(userId, token, ws);
+      const { token, userId, username } = message.payload;
+      if (!token || !userId || !username) {
+        this.sendMessage(ws, {
+          type: MessageType.AUTH_ERROR,
+          payload: { message: "Missing token, userId, or username" },
+          timestamp: Date.now(),
+        });
+        return;
       }
+      // ✅ Pass callback to authenticateUser
+      this.authenticateUser(
+        tempId,
+        userId,
+        username,
+        token,
+        ws,
+        authTimeout,
+        onAuthenticated,
+      );
       return;
     }
 
+    // ✅ Now correctly looks up by tempId (which closure keeps current)
+    const connection = connectionManager.getConnection(tempId);
     if (!connection?.isAuthenticated) {
       this.sendError(ws, "Not authenticated");
       return;
     }
 
+    const realUserId = connection.userId;
+
     switch (message.type) {
       case MessageType.START_TRANSMISSION:
-        this.handleStartTransmission(userId, message.payload);
+        this.handleStartTransmission(realUserId, message.payload);
         break;
-
       case MessageType.END_TRANSMISSION:
-        this.handleEndTransmission(userId, message.payload);
+        this.handleEndTransmission(realUserId, message.payload);
         break;
-
       case MessageType.AUDIO_DATA:
-        this.handleAudioChunk(userId, message.payload);
+        this.handleAudioChunk(realUserId, message.payload);
         break;
-
       case MessageType.JOIN_CHANNEL:
-        this.handleJoinChannel(userId, message.payload);
+        this.handleJoinChannel(realUserId, message.payload);
         break;
-
       case MessageType.LEAVE_CHANNEL:
-        this.handleLeaveChannel(userId, message.payload);
+        this.handleLeaveChannel(realUserId, message.payload);
         break;
-
       case MessageType.MESSAGE:
-        this.handleTextMessage(userId, message.payload);
+        this.handleTextMessage(realUserId, message.payload);
         break;
-
       default:
         this.sendError(ws, `Unknown message type: ${message.type}`);
     }
