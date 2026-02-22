@@ -5,12 +5,12 @@ import { supabase } from "@/lib/supabase/client";
 import { Conversation } from "@/api/services/conversationServices";
 import { WebSocketStore } from "@/@types/websocket";
 
-const getWebSocketURL = () => {
-  return Platform.OS === "web"
-    ? "ws://localhost:3001/ws"
-    : `ws://${process.env.EXPO_PUBLIC_WS_HOST}/ws`;
-};
+const getWebSocketURL = (): string => {
+  const wsUrl = process.env.EXPO_PUBLIC_WS_URL ?? "ws://localhost:3001/ws";
+  const wsHost = process.env.EXPO_PUBLIC_WS_HOST ?? "localhost:3001";
 
+  return Platform.OS === "web" ? wsUrl : `ws://${wsHost}/ws`;
+};
 const getUsernameFromSession = async (userId: string): Promise<string> => {
   try {
     const { data } = await supabase
