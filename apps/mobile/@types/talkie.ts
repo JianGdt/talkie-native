@@ -4,6 +4,8 @@ export enum MessageType {
   AUTH_SUCCESS = "auth_success",
   AUTH_ERROR = "auth_error",
 
+  PRESENCE_UPDATE = "presence_update",
+
   // Channel Management
   JOIN_CHANNEL = "join_channel",
   LEAVE_CHANNEL = "leave_channel",

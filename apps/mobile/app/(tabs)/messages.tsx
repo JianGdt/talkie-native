@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -28,6 +28,7 @@ export default function MessageScreen() {
     setSelectedFilter,
     fetchConversations,
     handleRefresh,
+    markAsRead, // 👈 add this
   } = useConversations();
 
   const [showUserSearch, setShowUserSearch] = useState(false);
@@ -41,17 +42,23 @@ export default function MessageScreen() {
   };
 
   const handleConversationPress = (conv: Conversation) => {
+    markAsRead(conv.id); 
     router.push({
       pathname: "/messages/[id]",
       params: { id: conv.id, type: conv.type, name: getUsersName(conv) },
     });
   };
 
+  useEffect(() => {
+    fetchConversations();
+  }, []);
+
   const renderConversation = ({ item }: { item: Conversation }) => {
     const name = getUsersName(item);
     const avatar = getUsersAvatar(item);
     const time = formatRelativeTime(item.last_message?.timestamp);
     const unread = item.unread_count;
+    const isUnread = unread > 0 && !item.last_message?.isRead; // 👈 key flag
     const statusColor =
       item.type === "direct" && item.participants[0]
         ? (STATUS_COLORS[item.participants[0].status] ?? STATUS_COLORS.offline)
@@ -105,34 +112,47 @@ export default function MessageScreen() {
               <View className="flex-1">
                 <View className="flex-row items-center justify-between mb-1">
                   <View className="flex-row items-center gap-2 flex-1">
-                    <Text className="text-white text-base font-bold tracking-tight">
+                    {/* 👇 bold name only when unread */}
+                    <Text
+                      className={`text-base tracking-tight ${
+                        isUnread
+                          ? "text-white font-bold"
+                          : "text-slate-300 font-medium"
+                      }`}
+                    >
                       {name}
                     </Text>
                     {item.is_muted && (
                       <Ionicons name="volume-mute" size={16} color="#64748b" />
                     )}
                   </View>
-                  <Text className="text-slate-500 text-xs">{time}</Text>
+                  <Text
+                    className={`text-xs ${isUnread ? "text-white font-semibold" : "text-slate-500"}`}
+                  >
+                    {time}
+                  </Text>
                 </View>
 
                 <View className="flex-row items-center justify-between">
                   <Text
                     className={`flex-1 text-sm ${
-                      item.last_message?.isRead || unread === 0
-                        ? "text-slate-400"
-                        : "text-white font-semibold"
+                      isUnread ? "text-white font-semibold" : "text-slate-400"
                     }`}
                     numberOfLines={1}
                   >
                     {item.type === "group" && item.last_message?.sender && (
-                      <Text className="text-slate-500">
+                      <Text
+                        className={
+                          isUnread ? "text-slate-300" : "text-slate-500"
+                        }
+                      >
                         {item.last_message.sender}:{" "}
                       </Text>
                     )}
                     {item.last_message?.content || "No messages yet"}
                   </Text>
 
-                  {unread > 0 && (
+                  {isUnread && (
                     <View className="ml-3 bg-blue-500 rounded-full min-w-[24px] h-6 items-center justify-center px-2">
                       <Text className="text-white text-xs font-bold">
                         {formatUnreadCount(unread)}
@@ -173,7 +193,6 @@ export default function MessageScreen() {
         <View className="absolute bottom-0 left-0 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl" />
       </View>
 
-      {/* Header */}
       <View className="bg-slate-900/80 backdrop-blur-xl px-6 pt-16 pb-6 border-b border-slate-800/50">
         <View className="flex-row items-center justify-between mb-6">
           <View>

@@ -37,81 +37,60 @@ export interface Conversation {
   updated_at: string;
 }
 
+export interface PaginationParams {
+  limit?: number;
+  before?: number;
+  signal?: AbortSignal;
+}
+
 export const conversationService = {
-  getConversations: (userId: string, token?: string) => {
-    return apiClient.get<Conversation[]>(API_ENDPOINTS.CONVERSATIONS(userId), {
-      token,
-    });
-  },
+  getConversations: (signal?: AbortSignal) =>
+    apiClient.get<Conversation[]>(API_ENDPOINTS.CONVERSATIONS, { signal }),
 
   getMessages: (
     conversationId: string,
-    limit: number = 50,
-    before?: number,
-    token?: string,
-  ) => {
-    const endpoint = API_ENDPOINTS.CONVERSATION_MESSAGES(conversationId);
-    const query = new URLSearchParams();
-    query.append("limit", limit.toString());
-    if (before) query.append("before", before.toString());
+    { limit = 50, before, signal }: PaginationParams = {},
+  ) =>
+    apiClient.get<Message[]>(
+      API_ENDPOINTS.CONVERSATION_MESSAGES(conversationId),
+      {
+        params: {
+          limit,
+          ...(before && { before }),
+        },
+        signal,
+      },
+    ),
 
-    return apiClient.get<Message[]>(`${endpoint}?${query.toString()}`, {
-      token,
-    });
-  },
-
-  createDirect: (userId: string, otherUserId: string, token?: string) => {
-    return apiClient.post<{ conversationId: string; isNew: boolean }>(
+  createDirect: (otherUserId: string, signal?: AbortSignal) =>
+    apiClient.post<{ conversationId: string; isNew: boolean }>(
       API_ENDPOINTS.CREATE_DIRECT,
-      { userId, otherUserId },
-      { token },
-    );
-  },
+      { otherUserId },
+      { signal },
+    ),
 
-  createGroup: (
-    userId: string,
-    name: string,
-    participantIds: string[],
-    token?: string,
-  ) => {
-    return apiClient.post<{
+  createGroup: (name: string, participantIds: string[], signal?: AbortSignal) =>
+    apiClient.post<{
       conversationId: string;
       name: string;
       participantCount: number;
-    }>(API_ENDPOINTS.CREATE_GROUP, { userId, name, participantIds }, { token });
-  },
+    }>(API_ENDPOINTS.CREATE_GROUP, { name, participantIds }, { signal }),
 
-  markAsRead: (conversationId: string, userId: string, token?: string) => {
-    return apiClient.post<{ success: boolean }>(
+  markAsRead: (conversationId: string) =>
+    apiClient.post<{ success: boolean }>(
       API_ENDPOINTS.CONVERSATION_READ(conversationId),
-      { userId },
-      { token },
-    );
-  },
+      {},
+    ),
 
-  togglePin: (
-    conversationId: string,
-    userId: string,
-    isPinned: boolean,
-    token?: string,
-  ) => {
-    return apiClient.post<{ success: boolean; isPinned: boolean }>(
+  togglePin: (conversationId: string, isPinned: boolean) =>
+    apiClient.post<{ success: boolean; isPinned: boolean }>(
       API_ENDPOINTS.CONVERSATION_PIN(conversationId),
-      { userId, isPinned },
-      { token },
-    );
-  },
+      { isPinned },
+    ),
 
-  toggleMute: (
-    conversationId: string,
-    userId: string,
-    isMuted: boolean,
-    token?: string,
-  ) => {
-    return apiClient.post<{ success: boolean; isMuted: boolean }>(
+  toggleMute: (conversationId: string, isMuted: boolean) =>
+    apiClient.post<{ success: boolean; isMuted: boolean }>(
       API_ENDPOINTS.CONVERSATION_MUTE(conversationId),
-      { userId, isMuted },
-      { token },
-    );
-  },
+      { isMuted },
+    ),
 };

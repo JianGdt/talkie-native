@@ -1,6 +1,5 @@
 export const API_ENDPOINTS = {
-  // Conversations
-  CONVERSATIONS: (userId: string) => `/api/conversations/${userId}`,
+  CONVERSATIONS: "/api/conversations",
   CONVERSATION_MESSAGES: (conversationId: string) =>
     `/api/conversations/${conversationId}/messages`,
   CONVERSATION_READ: (conversationId: string) =>
@@ -23,5 +22,5 @@ export const API_ENDPOINTS = {
   USERS_SEARCH: "/api/users/search",
   USER: (userId: string) => `/api/users/${userId}`,
   USERS: "/api/users",
-  USER_CHANNELS: (userId: string) => `/api/users/${userId}/channels`,
+  USER_CHANNELS: "/api/users/me/channels",
 } as const;

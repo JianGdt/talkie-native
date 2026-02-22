@@ -1,124 +1,92 @@
+import { supabase } from "@/lib/supabase/client";
+
 const API_URL = "http://localhost:3001";
+if (!API_URL) throw new Error("EXPO_PUBLIC_API_URL is not defined");
+
+export class ApiError extends Error {
+  constructor(
+    public status: number,
+    message: string,
+    public data?: unknown,
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
 
 interface RequestOptions {
   headers?: Record<string, string>;
-  token?: string;
+  params?: Record<string, string | number>;
+  signal?: AbortSignal;
 }
 
+const getAuthHeaders = async (): Promise<Record<string, string>> => {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (!session?.access_token) throw new ApiError(401, "Unauthenticated");
+  return { Authorization: `Bearer ${session.access_token}` };
+};
+
+const buildUrl = (
+  endpoint: string,
+  params?: Record<string, string | number>,
+) => {
+  const url = `${API_URL}${endpoint}`;
+  if (!params) return url;
+  const searchParams = new URLSearchParams(
+    Object.entries(params).map(([k, v]) => [k, String(v)]),
+  );
+  return `${url}?${searchParams}`;
+};
+
+const request = async <T>(
+  method: string,
+  endpoint: string,
+  options?: RequestOptions & { data?: unknown },
+): Promise<T> => {
+  const authHeaders = await getAuthHeaders();
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...authHeaders,
+    ...options?.headers,
+  };
+
+  const response = await fetch(buildUrl(endpoint, options?.params), {
+    method,
+    headers,
+    body: options?.data ? JSON.stringify(options.data) : undefined,
+    signal: options?.signal,
+  });
+
+  if (response.status === 204) return undefined as T;
+
+  const json = await response
+    .json()
+    .catch(() => ({ message: "Request failed" }));
+
+  if (!response.ok) {
+    throw new ApiError(
+      response.status,
+      json.message || json.error || "Request failed",
+      json,
+    );
+  }
+
+  return json as T;
+};
+
 export const apiClient = {
-  get: async <T = any>(
-    endpoint: string,
-    options?: RequestOptions,
-  ): Promise<T> => {
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-      ...options?.headers,
-    };
+  get: <T = any>(endpoint: string, options?: RequestOptions) =>
+    request<T>("GET", endpoint, options),
 
-    if (options?.token) {
-      headers["Authorization"] = `Bearer ${options.token}`;
-    }
+  post: <T = any>(endpoint: string, data: unknown, options?: RequestOptions) =>
+    request<T>("POST", endpoint, { ...options, data }),
 
-    const response = await fetch(`${API_URL}${endpoint}`, {
-      method: "GET",
-      headers,
-    });
+  patch: <T = any>(endpoint: string, data: unknown, options?: RequestOptions) =>
+    request<T>("PATCH", endpoint, { ...options, data }),
 
-    if (!response.ok) {
-      const error = await response
-        .json()
-        .catch(() => ({ message: "Request failed" }));
-      throw new Error(error.message || error.error || "Request failed");
-    }
-
-    return response.json();
-  },
-
-  post: async <T = any>(
-    endpoint: string,
-    data: any,
-    options?: RequestOptions,
-  ): Promise<T> => {
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-      ...options?.headers,
-    };
-
-    if (options?.token) {
-      headers["Authorization"] = `Bearer ${options.token}`;
-    }
-
-    const response = await fetch(`${API_URL}${endpoint}`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(data),
-    });
-
-    if (!response.ok) {
-      const error = await response
-        .json()
-        .catch(() => ({ message: "Request failed" }));
-      throw new Error(error.message || error.error || "Request failed");
-    }
-
-    return response.json();
-  },
-
-  patch: async <T = any>(
-    endpoint: string,
-    data: any,
-    options?: RequestOptions,
-  ): Promise<T> => {
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-      ...options?.headers,
-    };
-
-    if (options?.token) {
-      headers["Authorization"] = `Bearer ${options.token}`;
-    }
-
-    const response = await fetch(`${API_URL}${endpoint}`, {
-      method: "PATCH",
-      headers,
-      body: JSON.stringify(data),
-    });
-
-    if (!response.ok) {
-      const error = await response
-        .json()
-        .catch(() => ({ message: "Request failed" }));
-      throw new Error(error.message || error.error || "Request failed");
-    }
-
-    return response.json();
-  },
-
-  delete: async <T = any>(
-    endpoint: string,
-    options?: RequestOptions,
-  ): Promise<T> => {
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-      ...options?.headers,
-    };
-
-    if (options?.token) {
-      headers["Authorization"] = `Bearer ${options.token}`;
-    }
-
-    const response = await fetch(`${API_URL}${endpoint}`, {
-      method: "DELETE",
-      headers,
-    });
-
-    if (!response.ok) {
-      const error = await response
-        .json()
-        .catch(() => ({ message: "Request failed" }));
-      throw new Error(error.message || error.error || "Request failed");
-    }
-
-    return response.json();
-  },
+  delete: <T = any>(endpoint: string, options?: RequestOptions) =>
+    request<T>("DELETE", endpoint, options),
 };

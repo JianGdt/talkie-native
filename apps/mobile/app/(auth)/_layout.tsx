@@ -1,4 +1,3 @@
-// app/(auth)/_layout.tsx
 import { useAuth } from "@/hooks/useAuth";
 import { Redirect, Stack } from "expo-router";
 

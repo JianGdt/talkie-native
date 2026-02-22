@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Stack, useRouter, useSegments } from "expo-router";
 import "./global.css";
 import { AuthProvider } from "@/context/AuthContext";
@@ -12,40 +12,39 @@ function RootLayoutNav() {
   const { user, isLoading } = useAuth();
   const segments = useSegments();
   const router = useRouter();
-  const { initializeWebSocket, cleanup, isConnected } = useWebSocketStore();
+  const { initializeWebSocket, cleanup } = useWebSocketStore();
 
-  useEffect(() => {
-    if (user?.id) {
-      initializeWebSocket();
-
-      return () => {
-        console.log("Cleaning up WebSocket connection");
-        cleanup();
-      };
-    }
-  }, [user?.id]);
-
-  useEffect(() => {
-    if (isConnected) {
-      console.log("webSocket connected - user now online");
-    } else {
-      console.log("webSocket disconnected - user offline");
-    }
-  }, [isConnected]);
+  const prevUserIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (isLoading) return;
-    
+    const currentUserId = user?.id ?? null;
+    if (currentUserId === prevUserIdRef.current) return;
+
+    prevUserIdRef.current = currentUserId;
+
+    if (currentUserId) {
+      initializeWebSocket();
+    } else {
+      cleanup();
+    }
+  }, [user?.id, isLoading]);
+
+  useEffect(() => {
+    if (isLoading) return;
+
     const inAuthGroup = segments[0] === "(auth)";
 
     if (!user && !inAuthGroup) {
-      console.log("🔒 No user, redirecting to login");
       router.replace("/(auth)/login");
     } else if (user && inAuthGroup) {
-      console.log("✅ User exists, redirecting to tabs");
       router.replace("/(tabs)");
     }
   }, [user, isLoading, segments]);
+
+  useEffect(() => {
+    return () => cleanup();
+  }, []);
 
   return <Stack screenOptions={{ headerShown: false }} />;
 }

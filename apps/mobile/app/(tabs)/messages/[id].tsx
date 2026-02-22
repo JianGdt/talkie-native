@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -26,6 +26,16 @@ export default function ChatScreen() {
 
   const { messages, loading, send, userId } = useChatMessages(id, type);
   const [inputText, setInputText] = useState("");
+  const flatListRef = useRef<FlatList>(null);
+
+  useEffect(() => {
+    if (messages.length > 0) {
+      setTimeout(
+        () => flatListRef.current?.scrollToEnd({ animated: true }),
+        100,
+      );
+    }
+  }, [messages]);
 
   const handleSend = () => {
     if (!inputText.trim()) return;
@@ -70,11 +80,10 @@ export default function ChatScreen() {
       className="flex-1 bg-slate-950"
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
-      {/* Header */}
       <View className="bg-slate-900/80 px-4 pt-16 pb-4 border-b border-slate-800/50">
         <View className="flex-row items-center gap-4">
           <TouchableOpacity
-            onPress={() => router.back()}
+            onPress={() => router.replace("/messages")}
             className="w-10 h-10 items-center justify-center"
           >
             <Ionicons name="arrow-back" size={24} color="white" />
@@ -89,6 +98,7 @@ export default function ChatScreen() {
       </View>
 
       <FlatList
+        ref={flatListRef}
         data={messages}
         renderItem={renderMessage}
         keyExtractor={(item, i) => item.id ?? `msg-${i}`}

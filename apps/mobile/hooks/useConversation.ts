@@ -1,11 +1,12 @@
-import { useState, useEffect, useCallback } from "react";
+import { useCallback, useState } from "react";
 import { Alert } from "react-native";
-import { useAuth } from "@/hooks/useAuth";
 import {
   Conversation,
   conversationService,
 } from "@/api/services/conversationServices";
+import { ApiError } from "@/api/client";
 import { MessageFilterType } from "@/constant/chats";
+import { useWebSocketStore } from "@/store/useWebSocketStore";
 
 interface UseConversationsReturn {
   conversations: Conversation[];
@@ -18,46 +19,58 @@ interface UseConversationsReturn {
   setSelectedFilter: (f: MessageFilterType) => void;
   fetchConversations: () => Promise<void>;
   handleRefresh: () => void;
+  markAsRead: (conversationId: string) => void;
 }
 
 export function useConversations(): UseConversationsReturn {
-  const { user } = useAuth();
-  const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFilter, setSelectedFilter] =
     useState<MessageFilterType>("all");
 
+  const { conversations, markConversationAsRead, setConversations } =
+    useWebSocketStore();
+
   const fetchConversations = useCallback(async () => {
-    if (!user?.id) return;
     try {
       setLoading(true);
-      const data = await conversationService.getConversations(user.id);
+      const data = await conversationService.getConversations();
       setConversations(data);
-    } catch (error) {
-      console.error("Failed to fetch conversations:", error);
-      Alert.alert("Error", "Failed to load conversations");
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        Alert.alert("Session expired", "Please log in again.");
+      } else {
+        Alert.alert("Error", "Failed to load conversations.");
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [user?.id]);
-
-  useEffect(() => {
-    fetchConversations();
-  }, [fetchConversations]);
+  }, []);
 
   const handleRefresh = useCallback(() => {
     setRefreshing(true);
     fetchConversations();
   }, [fetchConversations]);
 
+  const markAsRead = useCallback(
+    (conversationId: string) => {
+      markConversationAsRead(conversationId);
+
+      conversationService.markAsRead(conversationId).catch((err) => {
+        console.warn("Failed to mark conversation as read on server:", err);
+      });
+    },
+    [markConversationAsRead],
+  );
+
   const filteredConversations = conversations.filter((conv) => {
     const q = searchQuery.toLowerCase();
+
     const matchesSearch =
       conv.name?.toLowerCase().includes(q) ||
-      conv.participants.some((p) => p.name.toLowerCase().includes(q));
+      conv.participants?.some((p) => p.name.toLowerCase().includes(q));
 
     const matchesFilter =
       selectedFilter === "all" ||
@@ -78,5 +91,6 @@ export function useConversations(): UseConversationsReturn {
     setSelectedFilter,
     fetchConversations,
     handleRefresh,
+    markAsRead,
   };
 }

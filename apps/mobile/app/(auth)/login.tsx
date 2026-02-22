@@ -24,7 +24,6 @@ export default function LoginScreen() {
         </Text>
         <Text className="text-gray-400 text-base">Sign in to continue</Text>
       </View>
-
       <GoogleSignInButton />
     </View>
   );

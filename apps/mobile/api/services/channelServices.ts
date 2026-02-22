@@ -1,6 +1,6 @@
 import { apiClient } from "../client";
 import { API_ENDPOINTS } from "../endpoints";
-import { Message } from "./conversationServices";
+import { Message, PaginationParams } from "./conversationServices";
 
 export interface Channel {
   id: string;
@@ -25,75 +25,59 @@ export interface ChannelMember {
   status: string;
 }
 
-export const channelService = {
-  getChannels: (token?: string) => {
-    return apiClient.get<Channel[]>(API_ENDPOINTS.CHANNELS, { token });
-  },
+export interface UpdateChannelPayload {
+  name?: string;
+  description?: string;
+  category?: Channel["category"];
+}
 
-  getChannel: (channelId: string, token?: string) => {
-    return apiClient.get<Channel>(API_ENDPOINTS.CHANNEL(channelId), { token });
-  },
+export const channelService = {
+  getChannels: (signal?: AbortSignal) =>
+    apiClient.get<Channel[]>(API_ENDPOINTS.CHANNELS, { signal }),
+
+  getChannel: (channelId: string, signal?: AbortSignal) =>
+    apiClient.get<Channel>(API_ENDPOINTS.CHANNEL(channelId), { signal }),
 
   getMessages: (
     channelId: string,
-    limit: number = 50,
-    before?: number,
-    token?: string,
-  ) => {
-    const endpoint = API_ENDPOINTS.CHANNEL_MESSAGES(channelId);
-    const query = new URLSearchParams();
-    query.append("limit", limit.toString());
-    if (before) query.append("before", before.toString());
+    { limit = 50, before, signal }: PaginationParams = {},
+  ) =>
+    apiClient.get<Message[]>(API_ENDPOINTS.CHANNEL_MESSAGES(channelId), {
+      params: {
+        limit,
+        ...(before && { before }),
+      },
+      signal,
+    }),
 
-    return apiClient.get<Message[]>(`${endpoint}?${query.toString()}`, {
-      token,
-    });
-  },
+  getMembers: (channelId: string, signal?: AbortSignal) =>
+    apiClient.get<ChannelMember[]>(API_ENDPOINTS.CHANNEL_MEMBERS(channelId), {
+      signal,
+    }),
 
-  getMembers: (channelId: string, token?: string) => {
-    return apiClient.get<ChannelMember[]>(
-      API_ENDPOINTS.CHANNEL_MEMBERS(channelId),
-      { token },
-    );
-  },
+  getUserChannels: (signal?: AbortSignal) =>
+    apiClient.get<Channel[]>(API_ENDPOINTS.USER_CHANNELS, { signal }),
 
   createChannel: (
-    name: string,
-    description?: string,
-    category?: "public" | "private" | "team",
-    token?: string,
-  ) => {
-    return apiClient.post<Channel>(
-      API_ENDPOINTS.CHANNELS,
-      { name, description, category },
-      { token },
-    );
-  },
+    payload: {
+      name: string;
+      description?: string;
+      category?: Channel["category"];
+    },
+    signal?: AbortSignal,
+  ) => apiClient.post<Channel>(API_ENDPOINTS.CHANNELS, payload, { signal }),
 
   updateChannel: (
     channelId: string,
-    updates: {
-      name?: string;
-      description?: string;
-      category?: "public" | "private" | "team";
-    },
-    token?: string,
-  ) => {
-    return apiClient.patch<Channel>(API_ENDPOINTS.CHANNEL(channelId), updates, {
-      token,
-    });
-  },
+    updates: UpdateChannelPayload,
+    signal?: AbortSignal,
+  ) =>
+    apiClient.patch<Channel>(API_ENDPOINTS.CHANNEL(channelId), updates, {
+      signal,
+    }),
 
-  deleteChannel: (channelId: string, token?: string) => {
-    return apiClient.delete<{ success: boolean }>(
-      API_ENDPOINTS.CHANNEL(channelId),
-      { token },
-    );
-  },
-
-  getUserChannels: (userId: string, token?: string) => {
-    return apiClient.get<Channel[]>(API_ENDPOINTS.USER_CHANNELS(userId), {
-      token,
-    });
-  },
+  deleteChannel: (channelId: string, signal?: AbortSignal) =>
+    apiClient.delete<{ success: boolean }>(API_ENDPOINTS.CHANNEL(channelId), {
+      signal,
+    }),
 };

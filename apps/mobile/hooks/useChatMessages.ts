@@ -3,7 +3,7 @@ import { useWebSocketStore } from "@/store/useWebSocketStore";
 import { channelService } from "@/api/services/channelServices";
 import { conversationService } from "@/api/services/conversationServices";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/lib/supabase/client";
+import { ApiError } from "@/api/client";
 import { MessageType } from "@/@types/talkie";
 
 export interface Message {
@@ -20,64 +20,71 @@ export function useChatMessages(conversationId: string, type: string) {
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const processedIds = useRef(new Set<string>());
 
   useEffect(() => {
-    (async () => {
+    const controller = new AbortController();
+
+    const fetchMessages = async () => {
       try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-        const token = session?.access_token;
+        setLoading(true);
+        setError(null);
 
         const data =
           type === "channel"
-            ? await channelService.getMessages(
-                conversationId,
-                50,
-                undefined,
-                token,
-              )
-            : await conversationService.getMessages(
-                conversationId,
-                50,
-                undefined,
-                token,
-              );
+            ? await channelService.getMessages(conversationId, {
+                limit: 50,
+                signal: controller.signal,
+              })
+            : await conversationService.getMessages(conversationId, {
+                limit: 50,
+                signal: controller.signal,
+              });
 
         setMessages(data);
-        data.forEach((m: any) => m.id && processedIds.current.add(m.id));
-      } catch (e) {
-        console.error("Failed to fetch messages:", e);
+        data.forEach((m) => m.id && processedIds.current.add(m.id));
+      } catch (err) {
+        if (err instanceof ApiError) {
+          setError("Failed to load messages. Please try again.");
+        }
       } finally {
         setLoading(false);
       }
-    })();
-  }, [conversationId]);
+    };
+
+    fetchMessages();
+
+    return () => controller.abort();
+  }, [conversationId, type]);
 
   useEffect(() => {
     wsMessages
       .filter(
         (msg) =>
-          msg.type === "message" &&
+          msg.type === MessageType.MESSAGE &&
           (type === "channel"
             ? msg.payload.channelId === conversationId
             : msg.payload.conversationId === conversationId),
       )
       .forEach((msg) => {
         const { messageId, content, sender, timestamp } = msg.payload;
-        if (!messageId || processedIds.current.has(messageId)) return;
-        processedIds.current.add(messageId);
-        if (msg.userId === user?.id) return;
+
+        if (sender?.userId === user?.id) return;
+
+        const uniqueKey = messageId ?? `ws-${sender?.userId}-${timestamp}`;
+        if (processedIds.current.has(uniqueKey)) return;
+        processedIds.current.add(uniqueKey);
 
         const ts =
           typeof timestamp === "string"
             ? parseFloat(timestamp)
             : (timestamp ?? msg.timestamp);
+
         setMessages((prev) => [
           ...prev,
           {
-            id: messageId,
+            id: uniqueKey,
             content,
             sender_id: sender?.userId ?? msg.userId,
             sender_username: sender?.username ?? msg.username,
@@ -89,6 +96,7 @@ export function useChatMessages(conversationId: string, type: string) {
 
   const send = (content: string) => {
     if (!content.trim()) return;
+
     const tempId = `temp-${Date.now()}`;
 
     setMessages((prev) => [
@@ -116,5 +124,5 @@ export function useChatMessages(conversationId: string, type: string) {
     });
   };
 
-  return { messages, loading, send, userId: user?.id };
+  return { messages, loading, error, send, userId: user?.id };
 }

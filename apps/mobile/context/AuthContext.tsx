@@ -6,6 +6,7 @@ import * as Google from "expo-auth-session/providers/google";
 import { Platform } from "react-native";
 
 import * as Linking from "expo-linking";
+import { useWebSocketStore } from "@/store/useWebSocketStore";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -103,6 +104,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = async () => {
     try {
+      useWebSocketStore.getState().cleanup();
+
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
       setUser(null);
