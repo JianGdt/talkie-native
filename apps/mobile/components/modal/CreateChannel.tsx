@@ -69,12 +69,11 @@ export default function CreateChannelModal({
         data: { session },
       } = await supabase.auth.getSession();
 
-      const newChannel = await channelService.createChannel(
-        channelName.trim(),
-        description.trim() || undefined,
-        selectedCategory,
-        session?.access_token,
-      );
+      const newChannel = await channelService.createChannel({
+        name: channelName.trim(),
+        description: description.trim() || undefined,
+        category: selectedCategory,
+      });
 
       setChannelName("");
       setDescription("");
