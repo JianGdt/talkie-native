@@ -80,4 +80,18 @@ export const channelService = {
     apiClient.delete<{ success: boolean }>(API_ENDPOINTS.CHANNEL(channelId), {
       signal,
     }),
+
+  joinChannel: (channelId: string, signal?: AbortSignal) =>
+    apiClient.post<{
+      success: boolean;
+      channelId: string;
+      channelName: string;
+    }>(API_ENDPOINTS.CHANNEL_JOIN(channelId), {}, { signal }),
+
+  leaveChannel: (channelId: string, signal?: AbortSignal) =>
+    apiClient.post<{ success: boolean }>(
+      API_ENDPOINTS.CHANNEL_LEAVE(channelId),
+      {},
+      { signal },
+    ),
 };

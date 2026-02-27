@@ -18,6 +18,9 @@ export const API_ENDPOINTS = {
     `/api/channels/${channelId}/messages`,
   CHANNEL_MEMBERS: (channelId: string) => `/api/channels/${channelId}/members`,
 
+  CHANNEL_JOIN: (channelId: string) => `/api/channels/${channelId}/join`,
+  CHANNEL_LEAVE: (channelId: string) => `/api/channels/${channelId}/leave`,
+
   // Users
   USERS_SEARCH: "/api/users/search",
   USER: (userId: string) => `/api/users/${userId}`,

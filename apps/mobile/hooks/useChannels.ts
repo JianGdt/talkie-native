@@ -29,24 +29,15 @@ export function useChannels(): UseChannelsReturn {
   const router = useRouter();
 
   const [channels, setChannels] = useState<Channel[]>([]);
-  const [userChannels, setUserChannels] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] =
     useState<ChannelCategoryType>("all");
 
-  const fetchUserChannels = useCallback(async () => {
-    try {
-      const joined = await channelService.getUserChannels();
-      setUserChannels(new Set(joined.map((c) => c.id)));
-    } catch (err) {
-      if (err instanceof ApiError && err.status !== 401) {
-        console.error("Failed to fetch user channels:", err);
-      }
-    }
-  }, []);
-
+  // ── Data fetching ──────────────────────────────────────────
+  // GET /api/channels now returns isMember on each channel,
+  // so a single fetch is enough — no separate getUserChannels call needed.
   const fetchChannels = useCallback(async () => {
     try {
       const data = await channelService.getChannels();
@@ -61,8 +52,7 @@ export function useChannels(): UseChannelsReturn {
   const reloadData = useCallback(async () => {
     try {
       setLoading(true);
-      // ✅ Parallel fetch
-      await Promise.all([fetchChannels(), fetchUserChannels()]);
+      await fetchChannels();
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         Alert.alert("Session expired", "Please log in again.");
@@ -72,25 +62,27 @@ export function useChannels(): UseChannelsReturn {
     } finally {
       setLoading(false);
     }
-  }, [fetchChannels, fetchUserChannels]);
+  }, [fetchChannels]);
 
   useEffect(() => {
     reloadData();
   }, []);
-
-  useEffect(() => {
-    setChannels((prev) =>
-      prev.map((c) => ({ ...c, isActive: userChannels.has(c.id) })),
-    );
-  }, [userChannels]);
 
   const handleRefresh = useCallback(() => {
     setRefreshing(true);
     reloadData().finally(() => setRefreshing(false));
   }, [reloadData]);
 
+  // ── Optimistic update helper ───────────────────────────────
+  const setMembership = useCallback((channelId: string, isMember: boolean) => {
+    setChannels((prev) =>
+      prev.map((c) => (c.id === channelId ? { ...c, isActive: isMember } : c)),
+    );
+  }, []);
+
+  // ── Join: REST first, then WS subscribe ───────────────────
   const handleJoinChannel = useCallback(
-    (channel: Channel) => {
+    async (channel: Channel) => {
       if (!isAuthenticated) {
         Alert.alert("Error", "Please wait for authentication");
         return;
@@ -100,54 +92,84 @@ export function useChannels(): UseChannelsReturn {
         return;
       }
 
-      setUserChannels((prev) => new Set(prev).add(channel.id));
-      setChannels((prev) =>
-        prev.map((c) => (c.id === channel.id ? { ...c, isActive: true } : c)),
-      );
+      // Optimistic UI update
+      setMembership(channel.id, true);
 
-      sendMessage({
-        type: MessageType.JOIN_CHANNEL,
-        payload: { channelId: channel.id, user: { userId, username } },
-        timestamp: Date.now(),
-      });
+      try {
+        // 1. Persist membership in DB
+        await channelService.joinChannel(channel.id);
 
-      router.push({
-        pathname: "/messages/[id]",
-        params: {
-          id: channel.id,
-          type: "channel",
-          name: channel.name,
-          description: channel.description || "",
-          memberCount: channel.members?.toString() || "0",
-        },
-      });
+        // 2. Subscribe the socket to the channel room
+        sendMessage({
+          type: MessageType.JOIN_CHANNEL,
+          payload: { channelId: channel.id, user: { userId, username } },
+          timestamp: Date.now(),
+        });
+
+        // 3. Navigate into the channel
+        router.push({
+          pathname: "/messages/[id]",
+          params: {
+            id: channel.id,
+            type: "channel",
+            name: channel.name,
+            description: channel.description || "",
+            memberCount: channel.members?.toString() || "0",
+          },
+        });
+      } catch (err) {
+        // Roll back optimistic update on failure
+        setMembership(channel.id, false);
+        const message =
+          err instanceof ApiError
+            ? err.message
+            : "Failed to join channel. Please try again.";
+        Alert.alert("Error", message);
+      }
     },
-    [isAuthenticated, isConnected, sendMessage, userId, username, router],
+    [
+      isAuthenticated,
+      isConnected,
+      sendMessage,
+      userId,
+      username,
+      router,
+      setMembership,
+    ],
   );
 
+  // ── Leave: REST first, then WS unsubscribe ────────────────
   const handleLeaveChannel = useCallback(
-    (channel: Channel) => {
+    async (channel: Channel) => {
       if (!isConnected) {
         Alert.alert("Error", "Not connected to server");
         return;
       }
 
-      setUserChannels((prev) => {
-        const next = new Set(prev);
-        next.delete(channel.id);
-        return next;
-      });
-      setChannels((prev) =>
-        prev.map((c) => (c.id === channel.id ? { ...c, isActive: false } : c)),
-      );
+      // Optimistic UI update
+      setMembership(channel.id, false);
 
-      sendMessage({
-        type: MessageType.LEAVE_CHANNEL,
-        payload: { channelId: channel.id },
-        timestamp: Date.now(),
-      });
+      try {
+        // 1. Remove membership from DB
+        await channelService.leaveChannel(channel.id);
+
+        // 2. Unsubscribe the socket from the channel room
+        sendMessage({
+          type: MessageType.LEAVE_CHANNEL,
+          payload: { channelId: channel.id },
+          timestamp: Date.now(),
+        });
+      } catch (err) {
+        // Roll back optimistic update on failure
+        setMembership(channel.id, true);
+        const message =
+          err instanceof ApiError
+            ? err.message
+            : "Failed to leave channel. Please try again.";
+        Alert.alert("Error", message);
+      }
     },
-    [isConnected, sendMessage],
+    [isConnected, sendMessage, setMembership],
   );
 
   const filteredChannels = channels.filter((channel) => {

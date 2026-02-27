@@ -176,10 +176,10 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
 
               const currentUserId = get().userId;
               const isOwn = sender.userId === currentUserId;
-
               const exists = get().conversations.some(
                 (c) => c.id === conversationId,
               );
+
               if (exists) {
                 get().updateConversationLastMessage(
                   conversationId,

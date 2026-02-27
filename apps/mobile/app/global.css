@@ -9,7 +9,6 @@ body {
   align-self: center;
   background-color: #121212;
   max-width: var(--app-max-width);
-  width: 100%;
   position: relative;
   --color: #ff9494;
   text-rendering: optimizeLegibility;
