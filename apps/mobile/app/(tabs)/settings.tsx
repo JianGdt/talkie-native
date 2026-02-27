@@ -1,4 +1,4 @@
-import { SettingItem } from "@/components/SettingItems";
+import { SettingItem } from "@/components/shared/SettingItems";
 import { useAuth } from "@/hooks/useAuth";
 import { useSettingsStore } from "@/store/useSettingStore";
 import { Ionicons } from "@expo/vector-icons";

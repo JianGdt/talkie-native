@@ -2,13 +2,13 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   View,
   Text,
-  TextInput,
   TouchableOpacity,
   FlatList,
   Modal,
   ActivityIndicator,
   Alert,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@/hooks/useAuth";
 import { API_ENDPOINTS } from "@/api/endpoints";
@@ -16,6 +16,11 @@ import { apiClient, ApiError } from "@/api/client";
 import { conversationService } from "@/api/services/conversationServices";
 import { useWebSocketStore } from "@/store/useWebSocketStore";
 import { debounce } from "lodash";
+
+import { SearchBar } from "@/components/shared/SearchBar";
+import { AvatarBadge } from "@/components/shared/AvatarBadge";
+import { EmptyState } from "@/components/shared/EmptyState";
+import { BackgroundGlow } from "@/components/shared/BackgroundGlow";
 
 interface User {
   id: string;
@@ -44,42 +49,28 @@ export default function UserSearchModal({
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { isUserOnline } = useWebSocketStore();
-
-  // ✅ AbortController ref to cancel in-flight requests
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const searchUsers = async (query: string) => {
-    // ✅ Cancel any previous in-flight request
     abortControllerRef.current?.abort();
     abortControllerRef.current = new AbortController();
-
     try {
       setLoading(true);
       setError(null);
-
-      // ✅ No token, no supabase import — apiClient handles it
       const results = await apiClient.get<User[]>(API_ENDPOINTS.USERS_SEARCH, {
-        params: { q: query.trim().slice(0, 100) }, // ✅ sanitized
+        params: { q: query.trim().slice(0, 100) },
         signal: abortControllerRef.current.signal,
       });
-
-      // ✅ Filter out current user
       setUsers(results.filter((u) => u.id !== user?.id));
     } catch (err) {
-      if (err instanceof ApiError) {
-        setError("Search failed. Please try again.");
-      }
-      // ✅ AbortError is ignored silently — it's intentional cancellation
+      if (err instanceof ApiError) setError("Search failed. Please try again.");
     } finally {
       setLoading(false);
     }
   };
 
-  // ✅ Lodash debounce — stable reference via useCallback
   const debouncedSearch = useCallback(
-    debounce((query: string) => {
-      searchUsers(query);
-    }, 300),
+    debounce((query: string) => searchUsers(query), 500),
     [],
   );
 
@@ -90,16 +81,13 @@ export default function UserSearchModal({
       debouncedSearch.cancel();
       return;
     }
-
     debouncedSearch(searchQuery);
-
     return () => {
       debouncedSearch.cancel();
-      abortControllerRef.current?.abort(); // ✅ cancel on unmount/query change
+      abortControllerRef.current?.abort();
     };
   }, [searchQuery]);
 
-  // ✅ Reset state when modal closes
   useEffect(() => {
     if (!visible) {
       setSearchQuery("");
@@ -113,66 +101,57 @@ export default function UserSearchModal({
   const handleUserSelect = async (selectedUser: User) => {
     try {
       setCreating(true);
-
-      // ✅ No token, no userId — handled by apiClient + backend
       const result = await conversationService.createDirect(selectedUser.id);
-
       onClose();
       onUserSelect(result.conversationId, selectedUser.name);
-    } catch (err) {
+    } catch {
       Alert.alert("Error", "Failed to start conversation. Please try again.");
     } finally {
       setCreating(false);
     }
   };
 
-  const getStatusColor = (userId: string) =>
-    isUserOnline(userId) ? "bg-emerald-400" : "bg-slate-600";
+  const renderUser = ({ item }: { item: User }) => {
+    const initials = item.name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2);
+    const online = isUserOnline(item.id);
 
-  const getStatusText = (userId: string) =>
-    isUserOnline(userId) ? "online" : "offline";
+    return (
+      <TouchableOpacity
+        className="flex-row items-center gap-4 p-4 border-b border-slate-800/50"
+        activeOpacity={0.7}
+        onPress={() => handleUserSelect(item)}
+        disabled={creating}
+      >
+        <AvatarBadge
+          colorClass="bg-gradient-to-br from-cyan-500 to-blue-500"
+          label={initials}
+          isActive={online}
+          size="sm"
+        />
 
-  const renderUser = ({ item }: { item: User }) => (
-    <TouchableOpacity
-      className="flex-row items-center gap-4 p-4 border-b border-slate-800/50"
-      activeOpacity={0.7}
-      onPress={() => handleUserSelect(item)}
-      disabled={creating}
-    >
-      {/* Avatar */}
-      <View className="relative">
-        <View className="w-12 h-12 bg-gradient-to-br from-cyan-500 to-blue-500 rounded-2xl items-center justify-center">
-          <Text className="text-white text-lg font-bold">
-            {item.name
-              .split(" ")
-              .map((n) => n[0])
-              .join("")
-              .toUpperCase()
-              .slice(0, 2)}
+        <View className="flex-1">
+          <Text className="text-white text-base font-semibold">
+            {item.name}
+          </Text>
+          {item.full_name && (
+            <Text className="text-slate-400 text-sm">{item.full_name}</Text>
+          )}
+          <Text className="text-slate-500 text-xs capitalize">
+            {online ? "online" : "offline"}
           </Text>
         </View>
-        <View
-          className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 ${getStatusColor(item.id)} rounded-full border-2 border-slate-900`}
-        />
-      </View>
 
-      {/* User Info */}
-      <View className="flex-1">
-        <Text className="text-white text-base font-semibold">{item.name}</Text>
-        {item.full_name && (
-          <Text className="text-slate-400 text-sm">{item.full_name}</Text>
-        )}
-        <Text className="text-slate-500 text-xs capitalize">
-          {getStatusText(item.id)}
-        </Text>
-      </View>
-
-      {/* Message Icon */}
-      <View className="w-10 h-10 bg-blue-500/20 rounded-xl items-center justify-center">
-        <Ionicons name="chatbubble" size={20} color="#3b82f6" />
-      </View>
-    </TouchableOpacity>
-  );
+        <View className="w-10 h-10 bg-blue-500/20 rounded-xl items-center justify-center">
+          <Ionicons name="chatbubble" size={20} color="#3b82f6" />
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <Modal
@@ -181,16 +160,16 @@ export default function UserSearchModal({
       transparent={false}
       onRequestClose={onClose}
     >
-      <View className="flex-1 bg-slate-950">
-        {/* Gradient Background */}
-        <View className="absolute inset-0 opacity-20">
-          <View className="absolute top-0 right-0 w-96 h-96 bg-blue-500/30 rounded-full blur-3xl" />
-          <View className="absolute bottom-0 left-0 w-96 h-96 bg-purple-500/30 rounded-full blur-3xl" />
-        </View>
+      <SafeAreaView className="flex-1 bg-slate-950">
+        <BackgroundGlow
+          glows={[
+            { position: "top-right", color: "blue" },
+            { position: "bottom-left", color: "purple" },
+          ]}
+        />
 
-        {/* Header */}
-        <View className="bg-slate-900/80 backdrop-blur-xl px-6 pt-16 pb-6 border-b border-slate-800/50">
-          <View className="flex-row items-center gap-4 mb-6">
+        <View className="bg-slate-900/80 backdrop-blur-xl px-6 pb-6 border-b border-slate-800/50">
+          <View className="flex-row items-center gap-4 mb-6 pt-4">
             <TouchableOpacity
               className="w-10 h-10 bg-slate-800/50 rounded-xl items-center justify-center"
               onPress={onClose}
@@ -202,21 +181,14 @@ export default function UserSearchModal({
             </Text>
           </View>
 
-          {/* Search Bar */}
-          <View className="bg-slate-800/50 backdrop-blur-sm rounded-2xl flex-row items-center px-5 py-4 border border-slate-700/50">
-            <Ionicons name="search" size={22} color="#64748b" />
-            <TextInput
-              className="flex-1 ml-4 text-white text-base"
-              placeholder="Search users..."
-              placeholderTextColor="#64748b"
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              autoFocus
-            />
-            {loading && <ActivityIndicator size="small" color="#3b82f6" />}
-          </View>
+          <SearchBar
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholder="Search users..."
+            loading={loading}
+            autoFocus
+          />
 
-          {/* ✅ Inline error feedback */}
           {error && (
             <Text className="text-red-400 text-sm mt-3 text-center">
               {error}
@@ -224,31 +196,18 @@ export default function UserSearchModal({
           )}
         </View>
 
-        {/* Results */}
         {searchQuery.trim() === "" ? (
-          <View className="flex-1 items-center justify-center px-12">
-            <View className="w-20 h-20 bg-slate-900/50 rounded-3xl items-center justify-center mb-5">
-              <Ionicons name="search" size={40} color="#334155" />
-            </View>
-            <Text className="text-slate-400 text-lg font-semibold text-center mb-2">
-              Search for people
-            </Text>
-            <Text className="text-slate-600 text-sm text-center">
-              Type a name or username to find someone to message
-            </Text>
-          </View>
+          <EmptyState
+            iconName="search"
+            title="Search for people"
+            subtitle="Type a name or username to find someone to message"
+          />
         ) : users.length === 0 && !loading && !error ? (
-          <View className="flex-1 items-center justify-center px-12">
-            <View className="w-20 h-20 bg-slate-900/50 rounded-3xl items-center justify-center mb-5">
-              <Ionicons name="person-outline" size={40} color="#334155" />
-            </View>
-            <Text className="text-slate-400 text-lg font-semibold text-center mb-2">
-              No users found
-            </Text>
-            <Text className="text-slate-600 text-sm text-center">
-              Try searching with a different name
-            </Text>
-          </View>
+          <EmptyState
+            iconName="person-outline"
+            title="No users found"
+            subtitle="Try searching with a different name"
+          />
         ) : (
           <FlatList
             data={users}
@@ -258,14 +217,13 @@ export default function UserSearchModal({
           />
         )}
 
-        {/* Creating Loader */}
         {creating && (
           <View className="absolute inset-0 bg-slate-950/80 items-center justify-center">
             <ActivityIndicator size="large" color="#3b82f6" />
             <Text className="text-white mt-4">Starting conversation...</Text>
           </View>
         )}
-      </View>
+      </SafeAreaView>
     </Modal>
   );
 }

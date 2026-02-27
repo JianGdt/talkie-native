@@ -1,9 +1,7 @@
 import React, { useState } from "react";
 import {
   FlatList,
-  ScrollView,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
   ActivityIndicator,
@@ -12,8 +10,13 @@ import { Ionicons } from "@expo/vector-icons";
 import { useChannels } from "@/hooks/useChannels";
 import { getCategoryIcon, type Channel } from "@/utils/channels";
 import CreateChannelModal from "@/components/modal/CreateChannel";
-import { formatUnreadCount } from "@/utils/formats";
 import { CHANNEL_CATEGORIES } from "@/constant/chats";
+import { AvatarBadge } from "@/components/shared/AvatarBadge";
+import { BackgroundGlow } from "@/components/shared/BackgroundGlow";
+import { ScreenHeader } from "@/components/shared/ScreenHeader";
+import { SearchBar } from "@/components/shared/SearchBar";
+import { FilterBtn } from "@/components/shared/Filter";
+import { EmptyState } from "@/components/shared/EmptyState";
 
 export default function ChannelsScreen() {
   const {
@@ -32,23 +35,11 @@ export default function ChannelsScreen() {
 
   const [showCreateModal, setShowCreateModal] = useState(false);
 
-  const handleChannelCreated = () => {
-    reloadData();
-  };
-
-  const handleChannelPress = (channel: Channel) => {
-    if (channel.isActive) {
-      handleJoinChannel(channel);
-    } else {
-      handleJoinChannel(channel);
-    }
-  };
-
   const renderChannel = ({ item }: { item: Channel }) => (
     <TouchableOpacity
       className="mb-3"
       activeOpacity={0.7}
-      onPress={() => handleChannelPress(item)}
+      onPress={() => handleJoinChannel(item)}
     >
       <View
         className={`bg-slate-900/50 backdrop-blur-xl rounded-3xl overflow-hidden border ${
@@ -64,29 +55,13 @@ export default function ChannelsScreen() {
         <View className="p-5">
           <View className="flex-row items-start justify-between mb-4">
             <View className="flex-row items-start gap-4 flex-1">
-              <View className="relative">
-                <View
-                  className={`w-14 h-14 ${item.color} rounded-2xl items-center justify-center shadow-lg`}
-                >
-                  <Ionicons
-                    name={getCategoryIcon(item.category) as any}
-                    size={26}
-                    color="white"
-                  />
-                </View>
-
-                {!!item.unreadCount && item.unreadCount > 0 && (
-                  <View className="absolute -top-1 -right-1 bg-red-500 rounded-full min-w-[20px] h-5 items-center justify-center px-1.5 border-2 border-slate-900">
-                    <Text className="text-white text-xs font-bold">
-                      {formatUnreadCount(item.unreadCount)}
-                    </Text>
-                  </View>
-                )}
-
-                {item.isActive && (
-                  <View className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-emerald-400 rounded-full border-2 border-slate-900" />
-                )}
-              </View>
+              <AvatarBadge
+                colorClass={item.color}
+                label=""
+                iconName={getCategoryIcon(item.category)}
+                isActive={item.isActive}
+                unreadCount={item.unreadCount}
+              />
 
               <View className="flex-1 pt-0.5">
                 <View className="flex-row items-center gap-2 mb-1.5">
@@ -130,17 +105,13 @@ export default function ChannelsScreen() {
               <View className="flex-row items-center gap-2">
                 <View className="w-8 h-8 bg-slate-800/50 rounded-lg items-center justify-center">
                   <View
-                    className={`w-2.5 h-2.5 rounded-full ${
-                      item.members > 5 ? "bg-emerald-400" : "bg-slate-600"
-                    }`}
+                    className={`w-2.5 h-2.5 rounded-full ${item.members > 5 ? "bg-emerald-400" : "bg-slate-600"}`}
                   />
                 </View>
                 <View>
                   <Text className="text-slate-400 text-xs">Status</Text>
                   <Text
-                    className={`text-sm font-semibold ${
-                      item.members > 5 ? "text-emerald-400" : "text-slate-400"
-                    }`}
+                    className={`text-sm font-semibold ${item.members > 5 ? "text-emerald-400" : "text-slate-400"}`}
                   >
                     {item.members > 5 ? "Active" : "Quiet"}
                   </Text>
@@ -169,9 +140,7 @@ export default function ChannelsScreen() {
                   color={item.isActive ? "#94a3b8" : "white"}
                 />
                 <Text
-                  className={`font-bold text-sm ${
-                    item.isActive ? "text-slate-400" : "text-white"
-                  }`}
+                  className={`font-bold text-sm ${item.isActive ? "text-slate-400" : "text-white"}`}
                 >
                   {item.isActive ? "Leave" : "Join"}
                 </Text>
@@ -194,91 +163,34 @@ export default function ChannelsScreen() {
 
   return (
     <View className="flex-1 bg-slate-950">
-      <View className="absolute inset-0 opacity-30">
-        <View className="absolute top-0 left-0 w-96 h-96 bg-blue-500/20 rounded-full blur-3xl" />
-        <View className="absolute bottom-0 right-0 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl" />
-      </View>
+      <BackgroundGlow
+        glows={[
+          { position: "top-left", color: "blue" },
+          { position: "bottom-right", color: "purple" },
+        ]}
+      />
 
       <View className="bg-slate-900/80 backdrop-blur-xl px-6 pt-16 pb-6 border-b border-slate-800/50">
-        <View className="flex-row items-center justify-between mb-6">
-          <View>
-            <Text className="text-white text-3xl font-bold tracking-tight mb-1">
-              Channels
-            </Text>
-            <Text className="text-slate-400 text-sm">
-              {filteredChannels.length} available
-            </Text>
-          </View>
-          <TouchableOpacity
-            className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl items-center justify-center shadow-lg shadow-blue-500/30"
-            onPress={() => setShowCreateModal(true)}
-          >
-            <Ionicons name="add" size={28} color="white" />
-          </TouchableOpacity>
-        </View>
-
-        <View className="bg-slate-800/50 backdrop-blur-sm rounded-2xl flex-row items-center px-5 py-4 border border-slate-700/50 shadow-xl">
-          <Ionicons name="search" size={22} color="#64748b" />
-          <TextInput
-            className="flex-1 ml-4 text-white text-base"
-            placeholder="Search channels..."
-            placeholderTextColor="#64748b"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchQuery("")}>
-              <View className="w-8 h-8 bg-slate-700/50 rounded-full items-center justify-center">
-                <Ionicons name="close" size={18} color="#94a3b8" />
-              </View>
-            </TouchableOpacity>
-          )}
-        </View>
+        <ScreenHeader
+          title="Channels"
+          subtitle={`${filteredChannels.length} available`}
+          onAddPress={() => setShowCreateModal(true)}
+        />
+        <SearchBar
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          placeholder="Search channels..."
+        />
       </View>
-      
+
       <View className="border-b border-slate-800/50">
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          className="px-6 py-5"
-          contentContainerClassName="gap-3"
-        >
-          {CHANNEL_CATEGORIES.map((cat) => {
-            const isActive = selectedCategory === cat.id;
-            return (
-              <TouchableOpacity
-                key={cat.id}
-                onPress={() => setSelectedCategory(cat.id)}
-                className={`px-5 py-3 rounded-2xl flex-row items-center gap-2.5 ${
-                  isActive
-                    ? "bg-gradient-to-r from-blue-500 to-blue-600 shadow-lg shadow-blue-500/30"
-                    : "bg-slate-900/50 backdrop-blur-sm border border-slate-800/50"
-                }`}
-                activeOpacity={0.7}
-              >
-                <Ionicons
-                  name={cat.icon as any}
-                  size={18}
-                  color={isActive ? "white" : "#64748b"}
-                />
-                <Text
-                  className={`font-semibold text-sm ${
-                    isActive ? "text-white" : "text-slate-400"
-                  }`}
-                >
-                  {cat.label}
-                </Text>
-                {isActive && (
-                  <View className="ml-1 bg-white/20 rounded-full px-2 py-0.5">
-                    <Text className="text-white text-xs font-bold">
-                      {filteredChannels.length}
-                    </Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+        <FilterBtn
+          filters={CHANNEL_CATEGORIES}
+          selected={selectedCategory}
+          onSelect={setSelectedCategory}
+          activeCount={filteredChannels.length}
+          scrollable
+        />
       </View>
 
       <FlatList
@@ -290,34 +202,26 @@ export default function ChannelsScreen() {
         refreshing={refreshing}
         onRefresh={handleRefresh}
         ListEmptyComponent={
-          <View className="items-center justify-center py-24">
-            <View className="w-20 h-20 bg-slate-900/50 rounded-3xl items-center justify-center mb-5">
-              <Ionicons name="add-circle-outline" size={40} color="#334155" />
-            </View>
-            <Text className="text-slate-400 text-lg font-semibold mb-2">
-              No channels yet
-            </Text>
-            <Text className="text-slate-600 text-sm text-center px-12 mb-6">
-              {searchQuery
+          <EmptyState
+            iconName="add-circle-outline"
+            title="No channels yet"
+            subtitle={
+              searchQuery
                 ? "Try adjusting your search"
-                : "Create the first channel to get started"}
-            </Text>
-            {!searchQuery && (
-              <TouchableOpacity
-                className="px-6 py-3 bg-blue-500 rounded-2xl"
-                onPress={() => setShowCreateModal(true)}
-              >
-                <Text className="text-white font-semibold">Create Channel</Text>
-              </TouchableOpacity>
-            )}
-          </View>
+                : "Create the first channel to get started"
+            }
+            ctaLabel={!searchQuery ? "Create Channel" : undefined}
+            onCtaPress={
+              !searchQuery ? () => setShowCreateModal(true) : undefined
+            }
+          />
         }
       />
 
       <CreateChannelModal
         visible={showCreateModal}
         onClose={() => setShowCreateModal(false)}
-        onChannelCreated={handleChannelCreated}
+        onChannelCreated={reloadData}
       />
     </View>
   );
