@@ -10,6 +10,7 @@ import channelRoutes from "./routes/channel.routes";
 import channelManagerService from "./services/channel-manager.service";
 import { ActiveUserService } from "./services/active.service";
 import websocket from "@fastify/websocket";
+import auth from "./plugins/auth";
 
 const fastify = Fastify({
   logger: {
@@ -39,14 +40,14 @@ async function start() {
         }
       },
       credentials: true,
-      methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+      methods: ["GET", "POST", "PUT", "DELETE"],
     });
 
     await fastify.register(databasePlugin);
-
     await fastify.register(websocket);
 
-    // Health check endpoint
+    await fastify.register(auth);
+
     fastify.get("/health", async (request, reply) => {
       try {
         await fastify.db.query("SELECT 1");
@@ -68,16 +69,12 @@ async function start() {
 
     // Register routes
     await fastify.register(authRoutes);
-
     await fastify.register(userRoutes);
-
     await fastify.register(websocketRoutes);
-
     await fastify.register(channelRoutes);
-
     await fastify.register(conversationRoutes);
 
-    console.log("All routes registered successfully");
+    console.log("log this to check if the all routes registered successfully");
 
     const activeUserService = new ActiveUserService(fastify.db);
 
@@ -91,11 +88,7 @@ async function start() {
 
     const port = parseInt(process.env.PORT || "3001", 10);
 
-    // Start server
-    await fastify.listen({
-      port: port,
-      host: "0.0.0.0",
-    });
+    await fastify.listen({ port, host: "0.0.0.0" });
 
     console.log(`✅ Server running on http://0.0.0.0:${port}`);
     console.log(`✅ WebSocket available at ws://0.0.0.0:${port}/ws`);

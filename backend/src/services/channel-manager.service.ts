@@ -90,7 +90,6 @@ class ChannelManager {
 
     try {
       for (const channelData of defaultChannels) {
-        // Check if channel exists by name
         const existing = await this.db.query(
           "SELECT * FROM channels WHERE name = $1 LIMIT 1",
           [channelData.name],
@@ -100,7 +99,6 @@ class ChannelManager {
         let createdAt: Date;
 
         if (existing.rows.length === 0) {
-          // Create new channel with UUID
           channelId = uuidv4();
           const result = await this.db.query(
             `INSERT INTO channels (id, name, description, category, created_by, created_at, updated_at) 
@@ -122,7 +120,6 @@ class ChannelManager {
             `✅ Created default channel: ${channelData.name} (${channelId})`,
           );
         } else {
-          // Use existing channel
           channelId = existing.rows[0].id;
           createdAt = existing.rows[0].created_at;
           console.log(
@@ -130,7 +127,6 @@ class ChannelManager {
           );
         }
 
-        // Add to in-memory map
         const channel: Channel = {
           id: channelId,
           name: channelData.name,
@@ -145,10 +141,6 @@ class ChannelManager {
 
       console.log(`✅ Initialized ${defaultChannels.length} default channels`);
     } catch (error) {
-      console.error(
-        "⚠️ Could not initialize default channels (table may not exist yet):",
-        error,
-      );
       console.log("📦 Using in-memory fallback channels");
       this.initializeDefaultChannels();
     }
@@ -182,10 +174,6 @@ class ChannelManager {
       };
       this.channels.set(channel.id, channel);
     });
-
-    console.log(
-      `✅ Initialized ${defaultChannels.length} default channels (in-memory fallback)`,
-    );
   }
 
   getChannel(channelId: string): Channel | undefined {
@@ -237,10 +225,6 @@ class ChannelManager {
 
     channel.participants.set(user.id, user);
     channel.activeUsers.add(user.id);
-
-    console.log(
-      `👤 ${user.username} joined channel: ${channel.name} (${channel.activeUsers.size} users)`,
-    );
     return true;
   }
 
@@ -274,7 +258,6 @@ class ChannelManager {
       return;
     }
 
-    // Preserve active users and participants
     const activeUsersByChannel = new Map<string, Set<string>>();
     const participantsByChannel = new Map<string, Map<string, User>>();
 
@@ -283,11 +266,9 @@ class ChannelManager {
       participantsByChannel.set(channelId, new Map(channel.participants));
     });
 
-    // Clear and reload
     this.channels.clear();
     await this.loadChannelsFromDatabase();
 
-    // Restore active users
     activeUsersByChannel.forEach((activeUsers, channelId) => {
       const channel = this.channels.get(channelId);
       if (channel) {
@@ -307,7 +288,6 @@ class ChannelManager {
     });
     console.log("🧹 Cleared all active users from channels");
   }
-  
 }
 
 export default new ChannelManager();

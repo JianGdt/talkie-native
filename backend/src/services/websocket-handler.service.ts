@@ -5,7 +5,6 @@ import { createClient } from "@supabase/supabase-js";
 
 import {
   AudioChunkPayload,
-  ClientConnection,
   EndTransmissionPayload,
   JoinChannelPayload,
   LeaveChannelPayload,
@@ -73,7 +72,6 @@ class WebSocketHandler {
     ws: WebSocket,
     authTimeout: ReturnType<typeof setTimeout>,
   ) {
-    // ✅ currentId lives here as a closure variable
     let currentId = tempId;
 
     ws.on("message", (message: Buffer) => {
@@ -83,15 +81,9 @@ class WebSocketHandler {
           return;
         }
         const parsed = JSON.parse(message.toString());
-        this.routeMessage(
-          currentId,
-          parsed,
-          ws,
-          authTimeout,
-          (realId) => {
-            currentId = realId;
-          }, // ✅ inline callback updates closure
-        );
+        this.routeMessage(currentId, parsed, ws, authTimeout, (realId) => {
+          currentId = realId;
+        });
       } catch (error) {
         this.sendError(ws, "Invalid message format");
       }
@@ -116,7 +108,7 @@ class WebSocketHandler {
     token: string,
     ws: WebSocket,
     authTimeout: ReturnType<typeof setTimeout>,
-    onAuthenticated: (realId: string) => void, // ✅
+    onAuthenticated: (realId: string) => void,
   ) {
     try {
       const {
@@ -162,11 +154,11 @@ class WebSocketHandler {
         isAuthenticated: true,
       });
 
-      // ✅ Update currentId in the closure — all subsequent messages use realUserId
       onAuthenticated(userId);
 
       await this.activeUserService!.setUserOnline(userId);
       connectionManager.markAuthenticated(userId, true);
+      await this.resubscribeUserChannels(userId);
 
       this.sendMessage(ws, {
         type: MessageType.AUTH_SUCCESS,
@@ -185,14 +177,43 @@ class WebSocketHandler {
     }
   }
 
-  // MESSAGES, WEBSOCKET CYCLE
+  private async resubscribeUserChannels(userId: string) {
+    if (!this.channelService) return;
+
+    try {
+      const channels = await this.channelService.getUserChannels(userId);
+      const connection = connectionManager.getConnection(userId);
+      if (!connection) return;
+
+      for (const ch of channels) {
+        const userObj: User = {
+          id: userId,
+          email: "",
+          username: connection.username,
+          created_at: new Date(),
+          updated_at: new Date(),
+        };
+        channelManager.addUserToChannel(ch.id, userObj);
+      }
+
+      console.log(
+        `🔁 Re-subscribed ${connection.username} to ${channels.length} channels`,
+      );
+    } catch (err) {
+      console.error("❌ Failed to resubscribe user channels:", err);
+    }
+  }
+
+  // ──────────────────────────────────────────────────────────
+  // MESSAGE ROUTING AND HANDLERS (chat cycle)
+  // ──────────────────────────────────────────────────────────
 
   private routeMessage(
     tempId: string,
     message: WebSocketMessage,
     ws: WebSocket,
     authTimeout: ReturnType<typeof setTimeout>,
-    onAuthenticated: (realId: string) => void, // ✅
+    onAuthenticated: (realId: string) => void,
   ) {
     if (message.type === MessageType.AUTH || message.type === "AUTH") {
       const { token, userId, username } = message.payload;
@@ -204,7 +225,6 @@ class WebSocketHandler {
         });
         return;
       }
-      // ✅ Pass callback to authenticateUser
       this.authenticateUser(
         tempId,
         userId,
@@ -217,7 +237,6 @@ class WebSocketHandler {
       return;
     }
 
-    // ✅ Now correctly looks up by tempId (which closure keeps current)
     const connection = connectionManager.getConnection(tempId);
     if (!connection?.isAuthenticated) {
       this.sendError(ws, "Not authenticated");
@@ -250,15 +269,132 @@ class WebSocketHandler {
     }
   }
 
+  private async handleJoinChannel(userId: string, payload: JoinChannelPayload) {
+    const { channelId, user } = payload;
+    const connection = connectionManager.getConnection(userId);
+    if (!connection) return;
+
+    const channel = channelManager.getChannel(channelId);
+    if (!channel) {
+      this.sendError(connection.ws, "Channel not found");
+      return;
+    }
+
+    if (connection.currentChannel && connection.currentChannel !== channelId) {
+      this.unsubscribeSocket(userId, connection.currentChannel);
+    }
+
+    const userObject: User = {
+      id: user.userId,
+      email: "",
+      username: user.username,
+      created_at: new Date(),
+      updated_at: new Date(),
+    };
+
+    channelManager.addUserToChannel(channelId, userObject);
+    connectionManager.updateConnectionChannel(userId, channelId);
+
+    this.sendMessage(connection.ws, {
+      type: MessageType.CHANNEL_JOINED,
+      payload: { channelId, channelName: channel.name, success: true },
+      timestamp: Date.now(),
+    });
+
+    this.broadcastToChannel(
+      channelId,
+      {
+        type: MessageType.USER_JOINED,
+        payload: { channelId, user },
+        timestamp: Date.now(),
+      },
+      userId,
+    );
+
+    const channelInfo = channelManager.getChannelInfo(channelId);
+    this.broadcastToChannel(channelId, {
+      type: MessageType.CHANNEL_UPDATE,
+      payload: channelInfo,
+      timestamp: Date.now(),
+    });
+
+    console.log(`✅ ${user.username} subscribed to ${channel.name}`);
+  }
+
+  private async handleLeaveChannel(
+    userId: string,
+    payload: LeaveChannelPayload,
+  ) {
+    const { channelId } = payload;
+    this.unsubscribeSocket(userId, channelId);
+  }
+
+  private unsubscribeSocket(userId: string, channelId: string) {
+    const connection = connectionManager.getConnection(userId);
+
+    const transmission = connectionManager.getActiveTransmission(channelId);
+    if (transmission?.userId === userId) {
+      connectionManager.endTransmission(channelId, userId);
+      this.broadcastToChannel(channelId, {
+        type: MessageType.TRANSMISSION_ENDED,
+        payload: { channelId, userId },
+        timestamp: Date.now(),
+      });
+    }
+
+    channelManager.removeUserFromChannel(channelId, userId);
+    connectionManager.updateConnectionChannel(userId, undefined);
+
+    this.broadcastToChannel(channelId, {
+      type: MessageType.USER_LEFT,
+      payload: { channelId, userId },
+      timestamp: Date.now(),
+    });
+
+    const channelInfo = channelManager.getChannelInfo(channelId);
+    this.broadcastToChannel(channelId, {
+      type: MessageType.CHANNEL_UPDATE,
+      payload: channelInfo,
+      timestamp: Date.now(),
+    });
+  }
+
+  // ──────────────────────────────────────────────────────────
+  // TEXT MESSAGES
+  // ──────────────────────────────────────────────────────────
+
   private async handleTextMessage(userId: string, payload: any) {
     const connection = connectionManager.getConnection(userId);
     if (!connection) return;
+
     try {
-      let messageId;
       if (payload.channelId) {
-        if (!connection.currentChannel) {
-          this.sendError(connection.ws, "Not in a channel");
-          return;
+        // If not in-memory subscribed, check DB membership and auto-resubscribe.
+        // This handles the case where the socket reconnected but JOIN_CHANNEL
+        // was never re-sent (e.g. user was already a member before reconnect).
+        if (!channelManager.isUserInChannel(payload.channelId, userId)) {
+          const isMember = await this.channelService!.isMember(
+            payload.channelId,
+            userId,
+          );
+          if (!isMember) {
+            this.sendError(connection.ws, "Not subscribed to this channel");
+            return;
+          }
+
+          // Re-subscribe the socket silently
+          const userObj: User = {
+            id: userId,
+            email: "",
+            username: connection.username,
+            created_at: new Date(),
+            updated_at: new Date(),
+          };
+          channelManager.addUserToChannel(payload.channelId, userObj);
+          connectionManager.updateConnectionChannel(userId, payload.channelId);
+          console.log(
+            `🔁 Auto-resubscribed ${connection.username} to channel ${payload.channelId}`,
+          );
         }
 
         const savedMessage = await this.channelService!.saveMessage(
@@ -267,15 +403,13 @@ class WebSocketHandler {
           payload.content,
         );
 
-        messageId = savedMessage.id;
-
-        this.broadcastToChannel(connection.currentChannel, {
+        this.broadcastToChannel(payload.channelId, {
           type: MessageType.MESSAGE,
           userId,
           username: connection.username,
           payload: {
             ...payload,
-            messageId,
+            messageId: savedMessage.id,
             timestamp: savedMessage.timestamp,
           },
           timestamp: savedMessage.timestamp,
@@ -286,8 +420,6 @@ class WebSocketHandler {
           userId,
           payload.content,
         );
-
-        messageId = savedMessage.id;
 
         const participants = await this.conversationService!.getParticipants(
           payload.conversationId,
@@ -317,152 +449,12 @@ class WebSocketHandler {
     }
   }
 
-  private async handleJoinChannel(userId: string, payload: JoinChannelPayload) {
-    const { channelId, user } = payload;
-    const connection = connectionManager.getConnection(userId);
-
-    if (!connection) return;
-
-    console.log(`👤 ${user.username} attempting to join channel ${channelId}`);
-
-    try {
-      if (connection.currentChannel) {
-        await this.handleLeaveChannel(userId, {
-          channelId: connection.currentChannel,
-        });
-      }
-
-      const channel = channelManager.getChannel(channelId);
-
-      if (!channel) {
-        console.error(`❌ Channel ${channelId} not found in channel manager`);
-        console.log(
-          "📋 Available channels:",
-          channelManager
-            .getAllChannels()
-            .map((c) => ({ id: c.id, name: c.name })),
-        );
-        this.sendError(connection.ws, "Channel not found");
-        return;
-      }
-
-      try {
-        await this.channelService!.addMember(channelId, userId);
-        console.log(`✅ Successfully saved to database`);
-      } catch (dbError) {
-        console.error(`❌ DATABASE ERROR when adding member:`, dbError);
-        this.sendError(
-          connection.ws,
-          "Failed to join channel - database error",
-        );
-        return;
-      }
-
-      const userObject: User = {
-        id: user.userId,
-        email: "",
-        username: user.username,
-        created_at: new Date(),
-        updated_at: new Date(),
-      };
-
-      const success = channelManager.addUserToChannel(channelId, userObject);
-
-      if (!success) {
-        console.error(`❌ Failed to add to channel manager`);
-        this.sendError(connection.ws, "Failed to join channel");
-        return;
-      }
-
-      connectionManager.updateConnectionChannel(userId, channelId);
-
-      this.sendMessage(connection.ws, {
-        type: MessageType.CHANNEL_JOINED,
-        payload: {
-          channelId,
-          channelName: channel.name,
-          success: true,
-        },
-        timestamp: Date.now(),
-      });
-
-      this.broadcastToChannel(
-        channelId,
-        {
-          type: MessageType.USER_JOINED,
-          payload: { channelId, user },
-          timestamp: Date.now(),
-        },
-        userId,
-      );
-
-      const channelInfo = channelManager.getChannelInfo(channelId);
-      this.broadcastToChannel(channelId, {
-        type: MessageType.CHANNEL_UPDATE,
-        payload: channelInfo,
-        timestamp: Date.now(),
-      });
-
-      console.log(
-        `✅ ${user.username} successfully joined ${channel.name} (in-memory + database)`,
-      );
-    } catch (error) {
-      console.error("❌ Error joining channel:", error);
-      this.sendError(connection.ws, "Failed to join channel");
-    }
-  }
-
-  private async handleLeaveChannel(
-    userId: string,
-    payload: LeaveChannelPayload,
-  ) {
-    const { channelId } = payload;
-    const connection = connectionManager.getConnection(userId);
-
-    if (!connection) return;
-
-    try {
-      const transmission = connectionManager.getActiveTransmission(channelId);
-      if (transmission && transmission.userId === userId) {
-        connectionManager.endTransmission(channelId, userId);
-
-        this.broadcastToChannel(channelId, {
-          type: MessageType.TRANSMISSION_ENDED,
-          payload: { channelId, userId },
-          timestamp: Date.now(),
-        });
-      }
-
-      await this.channelService!.removeMember(channelId, userId);
-
-      channelManager.removeUserFromChannel(channelId, userId);
-
-      connectionManager.updateConnectionChannel(userId, undefined);
-
-      this.broadcastToChannel(channelId, {
-        type: MessageType.USER_LEFT,
-        payload: { channelId, userId },
-        timestamp: Date.now(),
-      });
-
-      const channelInfo = channelManager.getChannelInfo(channelId);
-      this.broadcastToChannel(channelId, {
-        type: MessageType.CHANNEL_UPDATE,
-        payload: channelInfo,
-        timestamp: Date.now(),
-      });
-    } catch (error) {
-      console.error("❌ Error leaving channel:", error);
-    }
-  }
-
   private handleStartTransmission(
     userId: string,
     payload: StartTransmissionPayload,
   ) {
     const { channelId } = payload;
     const connection = connectionManager.getConnection(userId);
-
     if (!connection) return;
 
     if (!channelManager.isUserInChannel(channelId, userId)) {
@@ -481,7 +473,7 @@ class WebSocketHandler {
         connectionManager.getActiveTransmission(channelId);
       this.sendError(
         connection.ws,
-        `Channel busy - ${activeTransmission?.username} is speaking`,
+        `Channel busy — ${activeTransmission?.username} is speaking`,
       );
       return;
     }
@@ -490,11 +482,7 @@ class WebSocketHandler {
       type: MessageType.TRANSMISSION_STARTED,
       userId,
       username: connection.username,
-      payload: {
-        channelId,
-        userId,
-        username: connection.username,
-      },
+      payload: { channelId, userId, username: connection.username },
       timestamp: Date.now(),
     });
   }
@@ -508,7 +496,6 @@ class WebSocketHandler {
     }
 
     const connection = connectionManager.getConnection(userId);
-
     this.broadcastToChannel(
       channelId,
       {
@@ -528,7 +515,6 @@ class WebSocketHandler {
   ) {
     const { channelId } = payload;
     const connection = connectionManager.getConnection(userId);
-
     const duration = connectionManager.endTransmission(channelId, userId);
 
     if (duration !== null) {
@@ -542,6 +528,10 @@ class WebSocketHandler {
     }
   }
 
+  // ──────────────────────────────────────────────────────────
+  // DISCONNECT
+  // ──────────────────────────────────────────────────────────
+
   private async handleDisconnect(userId: string) {
     const connection = connectionManager.getConnection(userId);
 
@@ -549,15 +539,11 @@ class WebSocketHandler {
     console.log(`User: ${connection?.username} (${userId})`);
 
     if (connection?.currentChannel) {
-      await this.handleLeaveChannel(userId, {
-        channelId: connection.currentChannel,
-      });
+      this.unsubscribeSocket(userId, connection.currentChannel);
     }
 
     await this.activeUserService!.setUserOffline(userId);
-
     this.broadcastPresenceUpdate(userId, "offline");
-
     connectionManager.removeConnection(userId);
 
     console.log(`👋 User ${userId} marked as offline`);
@@ -569,25 +555,39 @@ class WebSocketHandler {
     excludeUserId?: string,
   ) {
     const connections = connectionManager.getConnectionsByChannel(channelId);
-
     connections.forEach((conn) => {
       if (excludeUserId && conn.userId === excludeUserId) return;
       this.sendMessage(conn.ws, message);
     });
   }
 
+  async broadcastToChannelMembers(
+    channelId: string,
+    message: WebSocketMessage,
+    excludeUserId?: string,
+  ) {
+    if (!this.channelService) return;
+
+    try {
+      const members = await this.channelService.getChannelMembers(channelId);
+      members.forEach((member) => {
+        if (excludeUserId && member.id === excludeUserId) return;
+        const conn = connectionManager.getConnection(member.id);
+        if (conn) this.sendMessage(conn.ws, message);
+      });
+    } catch (err) {
+      console.error("❌ broadcastToChannelMembers failed:", err);
+    }
+  }
+
   broadcastPresenceUpdate(userId: string, status: string) {
     const message: WebSocketMessage = {
       type: "presence_update" as any,
-      payload: {
-        userId,
-        status,
-      },
+      payload: { userId, status },
       timestamp: Date.now(),
     };
 
-    const allConnections = connectionManager.getAllConnections();
-    allConnections.forEach((conn) => {
+    connectionManager.getAllConnections().forEach((conn) => {
       this.sendMessage(conn.ws, message);
     });
 
@@ -614,8 +614,7 @@ class WebSocketHandler {
 
   startHeartbeat() {
     setInterval(() => {
-      const connections = connectionManager.getAllConnections();
-      connections.forEach(async (conn) => {
+      connectionManager.getAllConnections().forEach(async (conn) => {
         if (!conn.isAlive) {
           console.log(`💀 Terminating dead connection: ${conn.username}`);
           conn.ws.terminate();

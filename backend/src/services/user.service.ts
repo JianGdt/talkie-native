@@ -70,12 +70,8 @@ export class UserService {
     const values: any[] = [];
     let paramCount = 1;
 
-    // ✅ SECURITY FIX: Only allow fields in the allowlist
-    // Previously, any key in `updates` was blindly added to the query
-    // This prevents SQL injection via crafted field names
     for (const [key, value] of Object.entries(updates)) {
       if (UPDATABLE_PROFILE_FIELDS.includes(key as keyof UserProfile)) {
-        // ✅ Validate field-level constraints
         if (key === "username") {
           if (!value || String(value).length < 2 || String(value).length > 50) {
             throw new Error("Username must be between 2 and 50 characters");
@@ -117,7 +113,6 @@ export class UserService {
   }
 
   async getAllProfiles(): Promise<UserProfile[]> {
-    // ✅ Limit the columns returned — avoid exposing sensitive internal fields
     const query = `
       SELECT user_id, username, full_name, avatar_url, bio, created_at, updated_at
       FROM user_profiles
@@ -128,14 +123,12 @@ export class UserService {
   }
 
   async searchUsers(searchQuery: string, limit: number = 20) {
-    // ✅ Validate and cap limit — never let client request unlimited rows
     const safeLimit = Math.min(Math.max(1, limit), 50);
 
     if (!searchQuery || searchQuery.trim().length === 0) {
       throw new Error("Search query is required");
     }
 
-    // ✅ Max search length to avoid abuse
     if (searchQuery.length > 100) {
       throw new Error("Search query too long");
     }

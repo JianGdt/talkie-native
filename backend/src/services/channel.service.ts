@@ -59,7 +59,7 @@ export class ChannelService {
       FROM channels c
       LEFT JOIN channel_members cm ON c.id = cm.channel_id
       LEFT JOIN user_profiles up ON cm.user_id = up.user_id
-      WHERE c.id = $1
+      WHERE c.id = $1::uuid
       GROUP BY c.id, c.name, c.description, c.category, c.created_at, c.updated_at
     `;
 
@@ -122,7 +122,7 @@ export class ChannelService {
     const query = `
       UPDATE channels
       SET ${fields.join(", ")}
-      WHERE id = $${paramCount}
+      WHERE id = $${paramCount}::uuid
       RETURNING id, name, description, category, created_at, updated_at
     `;
 
@@ -131,7 +131,7 @@ export class ChannelService {
   }
 
   async deleteChannel(channelId: string) {
-    const query = `DELETE FROM channels WHERE id = $1`;
+    const query = `DELETE FROM channels WHERE id = $1::uuid`;
     await this.db.query(query, [channelId]);
   }
 
@@ -153,16 +153,14 @@ export class ChannelService {
         EXTRACT(EPOCH FROM m.created_at) * 1000 as timestamp
       FROM messages m
       JOIN user_profiles up ON m.sender_id = up.user_id
-      WHERE m.channel_id = $1
+      WHERE m.channel_id = $1::uuid
         ${before ? "AND EXTRACT(EPOCH FROM m.created_at) * 1000 < $3" : ""}
       ORDER BY m.created_at DESC
       LIMIT $2
     `;
 
     const params = before ? [channelId, limit, before] : [channelId, limit];
-
     const result = await this.db.query(query, params);
-
     return result.rows.reverse();
   }
 
@@ -173,10 +171,10 @@ export class ChannelService {
     messageType: string = "text",
   ) {
     const query = `
-    INSERT INTO messages (channel_id, sender_id, content, message_type)
-    VALUES ($1::uuid, $2::uuid, $3, $4)
-    RETURNING id, created_at, EXTRACT(EPOCH FROM created_at) * 1000 as timestamp
-  `;
+      INSERT INTO messages (channel_id, sender_id, content, message_type)
+      VALUES ($1::uuid, $2::uuid, $3, $4)
+      RETURNING id, created_at, EXTRACT(EPOCH FROM created_at) * 1000 as timestamp
+    `;
 
     const result = await this.db.query(query, [
       channelId,
@@ -184,17 +182,16 @@ export class ChannelService {
       content,
       messageType,
     ]);
-
     return result.rows[0];
   }
 
   async addMember(channelId: string, userId: string) {
     const query = `
-    INSERT INTO channel_members (channel_id, user_id)
-    VALUES ($1::uuid, $2::uuid)
-    ON CONFLICT (channel_id, user_id) DO NOTHING
-    RETURNING id
-  `;
+      INSERT INTO channel_members (channel_id, user_id)
+      VALUES ($1::uuid, $2::uuid)
+      ON CONFLICT (channel_id, user_id) DO NOTHING
+      RETURNING id
+    `;
 
     const result = await this.db.query(query, [channelId, userId]);
     return result.rows[0];
@@ -203,7 +200,7 @@ export class ChannelService {
   async removeMember(channelId: string, userId: string) {
     const query = `
       DELETE FROM channel_members
-      WHERE channel_id = $1 AND user_id = $2
+      WHERE channel_id = $1::uuid AND user_id = $2::uuid
     `;
 
     await this.db.query(query, [channelId, userId]);
@@ -219,7 +216,7 @@ export class ChannelService {
         'online' as status
       FROM channel_members cm
       JOIN user_profiles up ON cm.user_id = up.user_id
-      WHERE cm.channel_id = $1
+      WHERE cm.channel_id = $1::uuid
       ORDER BY cm.joined_at DESC
     `;
 
@@ -228,22 +225,19 @@ export class ChannelService {
   }
 
   async isMember(channelId: string, userId: string): Promise<boolean> {
-    const query = `
-      SELECT 1
-      FROM channel_members
-      WHERE channel_id = $1 AND user_id = $2
-      LIMIT 1
-    `;
-
-    const result = await this.db.query(query, [channelId, userId]);
-    return result.rows.length > 0;
+    const raw = await this.db.query(
+      `SELECT channel_id::text, user_id::text FROM channel_members 
+     WHERE channel_id::text = $1 AND user_id::text = $2 LIMIT 1`,
+      [channelId, userId],
+    );
+    return raw.rows.length > 0;
   }
 
   async getUserChannels(userId: string) {
     const result = await this.db.query(
       `SELECT c.* FROM channels c
-     INNER JOIN channel_members cm ON c.id = cm.channel_id
-     WHERE cm.user_id = $1`,
+       INNER JOIN channel_members cm ON c.id = cm.channel_id
+       WHERE cm.user_id = $1::uuid`,
       [userId],
     );
     return result.rows;
