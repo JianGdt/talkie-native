@@ -1,14 +1,6 @@
 import React, { createContext, useEffect, useState, ReactNode } from "react";
 import { supabase } from "@/lib/supabase/client";
-import * as WebBrowser from "expo-web-browser";
-import { makeRedirectUri } from "expo-auth-session";
-import * as Google from "expo-auth-session/providers/google";
-import { Platform } from "react-native";
-
-import * as Linking from "expo-linking";
 import { useWebSocketStore } from "@/store/useWebSocketStore";
-
-WebBrowser.maybeCompleteAuthSession();
 
 export interface User {
   id: string;
@@ -22,7 +14,12 @@ interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   signOut: () => Promise<void>;
-  signInWithGoogle: () => Promise<void>;
+  signInWithEmail: (email: string, password: string) => Promise<void>;
+  signUpWithEmail: (
+    email: string,
+    password: string,
+    fullName: string,
+  ) => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(
@@ -32,18 +29,7 @@ export const AuthContext = createContext<AuthContextType | undefined>(
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setLoading] = useState(true);
-  const [initialized, setInitialized] = useState(false); // add this
-
-  const [request, response, promptAsync] = Google.useAuthRequest({
-    webClientId: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID,
-    redirectUri: makeRedirectUri({ scheme: "mobilefe" }),
-  });
-
-  useEffect(() => {
-    if (response?.type === "success") {
-      handleGoogleSignIn(response.authentication?.idToken);
-    }
-  }, [response]);
+  const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
     const {
@@ -57,13 +43,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       ) {
         try {
           let profile = await fetchUserProfile(session.user.id);
-          if (!profile) profile = await createGoogleUserProfile(session.user);
+          if (!profile) profile = await createUserProfile(session.user);
           setUser(profile);
         } catch (err) {
           console.error("❌ Error in onAuthStateChange:", err);
         } finally {
           setLoading(false);
-          setInitialized(true); // mark as done
+          setInitialized(true);
         }
       } else if (
         event === "SIGNED_OUT" ||
@@ -71,41 +57,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       ) {
         setUser(null);
         setLoading(false);
-        setInitialized(true); // mark as done even with no session
+        setInitialized(true);
       }
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
-  // useEffect(() => {
-  //   checkSession();
-  // }, []);
-
-  // const checkSession = async () => {
-  //   setLoading(true);
-  //   try {
-  //     const {
-  //       data: { session },
-  //     } = await supabase.auth.getSession();
-  //     if (session?.user) {
-  //       const profile = await fetchUserProfile(session.user.id);
-  //       setUser(profile);
-  //     } else {
-  //       setUser(null);
-  //     }
-  //   } catch (error) {
-  //     console.error("Error checking session:", error);
-  //     setUser(null);
-  //   } finally {
-  //     setLoading(false);
-  //   }
-  // };
-
   const signOut = async () => {
     try {
       useWebSocketStore.getState().cleanup();
-
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
       setUser(null);
@@ -115,59 +76,70 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const signInWithGoogle = async () => {
-    try {
-      if (Platform.OS === "web") {
-        const redirectTo = window.location.origin;
-        const { error } = await supabase.auth.signInWithOAuth({
-          provider: "google",
-          options: { redirectTo },
-        });
-        if (error) throw error;
-      } else {
-        await promptAsync();
-      }
-    } catch (error) {
-      console.error("❌ Google Sign-In error:", error);
-      throw error;
-    }
-  };
-  const handleGoogleSignIn = async (idToken: string | undefined) => {
-    if (!idToken) {
-      console.error("❌ No ID token received");
-      return;
-    }
+  const signInWithEmail = async (email: string, password: string) => {
     try {
       setLoading(true);
-      const { data, error } = await supabase.auth.signInWithIdToken({
-        provider: "google",
-        token: idToken,
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
       });
       if (error) throw error;
 
       if (data.user) {
         let profile = await fetchUserProfile(data.user.id);
-        if (!profile) profile = await createGoogleUserProfile(data.user);
+        if (!profile) profile = await createUserProfile(data.user);
         setUser(profile);
-        console.log("✅ Google Sign-In successful:", profile);
       }
     } catch (error) {
-      console.error("❌ Failed to complete Google sign-in:", error);
+      console.error("❌ Email Sign-In error:", error);
       throw error;
     } finally {
       setLoading(false);
     }
   };
 
-  const createGoogleUserProfile = async (authUser: any): Promise<User> => {
+  const signUpWithEmail = async (
+    email: string,
+    password: string,
+    fullName: string,
+  ) => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: { full_name: fullName },
+        },
+      });
+      if (error) throw error;
+
+      if (data.user) {
+        const profile = await createUserProfile(data.user, fullName);
+        setUser(profile);
+      }
+    } catch (error) {
+      console.error("❌ Email Sign-Up error:", error);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const createUserProfile = async (
+    authUser: any,
+    fullNameOverride?: string,
+  ): Promise<User> => {
     const fullName =
-      authUser?.full_name || authUser.email?.split("@")[0] || "User";
+      fullNameOverride ||
+      authUser?.user_metadata?.full_name ||
+      authUser.email?.split("@")[0] ||
+      "User";
     const username =
       authUser.email
         ?.split("@")[0]
         .toLowerCase()
         .replace(/[^a-z0-9]/g, "") || `user_${Date.now()}`;
-    const avatarUrl = authUser?.avatar_url || authUser?.user?.username;
 
     const { data, error } = await supabase
       .from("user_profiles")
@@ -175,7 +147,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user_id: authUser.id,
         username,
         full_name: fullName,
-        avatar_url: avatarUrl,
+        avatar_url: null,
       })
       .select()
       .single();
@@ -223,7 +195,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user,
         isLoading: isLoading || !initialized,
         signOut,
-        signInWithGoogle,
+        signInWithEmail,
+        signUpWithEmail,
       }}
     >
       {children}

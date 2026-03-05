@@ -50,7 +50,7 @@ export default function MessageScreen() {
   const handleConversationPress = (conv: Conversation) => {
     markAsRead(conv.id);
 
-    if (conv._isChannel) {
+    if (conv.isChannel) {
       router.push({
         pathname: "/messages/[id]",
         params: {

@@ -2,7 +2,6 @@ import { create } from "zustand";
 import { Platform } from "react-native";
 import { MessageType, WebSocketMessage } from "@/@types/talkie";
 import { supabase } from "@/lib/supabase/client";
-import { Conversation } from "@/api/services/conversationServices";
 import { WebSocketStore } from "@/@types/websocket";
 
 const getWebSocketURL = (): string => {

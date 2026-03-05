@@ -12,34 +12,39 @@ import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { router } from "expo-router";
 
-export default function LoginScreen() {
-  const { signInWithEmail, isLoading } = useAuth();
+export default function RegisterScreen() {
+  const { signUpWithEmail } = useAuth();
+  const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  const handleLogin = async () => {
-    if (!email.trim() || !password.trim()) {
-      Alert.alert("Missing fields", "Please enter your email and password.");
+  const handleRegister = async () => {
+    if (!fullName.trim() || !email.trim() || !password.trim()) {
+      Alert.alert("Missing fields", "Please fill in all fields.");
       return;
     }
+
+    if (password !== confirmPassword) {
+      Alert.alert("Password mismatch", "Passwords do not match.");
+      return;
+    }
+
+    if (password.length < 6) {
+      Alert.alert("Weak password", "Password must be at least 6 characters.");
+      return;
+    }
+
     try {
       setSubmitting(true);
-      await signInWithEmail(email.trim(), password);
+      await signUpWithEmail(email.trim(), password, fullName.trim());
     } catch (err: any) {
-      Alert.alert("Sign-in failed", err?.message || "Something went wrong.");
+      Alert.alert("Sign-up failed", err?.message || "Something went wrong.");
     } finally {
       setSubmitting(false);
     }
   };
-
-  if (isLoading) {
-    return (
-      <View className="flex-1 bg-gray-900 justify-center items-center">
-        <ActivityIndicator color="white" size="large" />
-      </View>
-    );
-  }
 
   return (
     <KeyboardAvoidingView
@@ -54,10 +59,19 @@ export default function LoginScreen() {
           >
             Wave
           </Text>
-          <Text className="text-gray-400 text-base">Sign in to continue</Text>
+          <Text className="text-gray-400 text-base">Create your account</Text>
         </View>
 
         <View className="gap-y-4">
+          <TextInput
+            className="bg-gray-800 text-white rounded-xl px-4 py-4 text-base"
+            placeholder="Full name"
+            placeholderTextColor="#9ca3af"
+            autoCapitalize="words"
+            value={fullName}
+            onChangeText={setFullName}
+          />
+
           <TextInput
             className="bg-gray-800 text-white rounded-xl px-4 py-4 text-base"
             placeholder="Email"
@@ -78,9 +92,18 @@ export default function LoginScreen() {
             onChangeText={setPassword}
           />
 
+          <TextInput
+            className="bg-gray-800 text-white rounded-xl px-4 py-4 text-base"
+            placeholder="Confirm password"
+            placeholderTextColor="#9ca3af"
+            secureTextEntry
+            value={confirmPassword}
+            onChangeText={setConfirmPassword}
+          />
+
           <TouchableOpacity
             className="bg-white rounded-xl py-4 items-center mt-2"
-            onPress={handleLogin}
+            onPress={handleRegister}
             disabled={submitting}
           >
             {submitting ? (
@@ -90,16 +113,18 @@ export default function LoginScreen() {
                 style={{ fontFamily: "Poppins_600SemiBold" }}
                 className="text-gray-900 text-base"
               >
-                Sign In
+                Create Account
               </Text>
             )}
           </TouchableOpacity>
         </View>
 
         <View className="flex-row justify-center mt-8">
-          <Text className="text-gray-400 text-sm">Don't have an account? </Text>
-          <TouchableOpacity onPress={() => router.push("/(auth)/register")}>
-            <Text className="text-white text-sm font-semibold">Sign Up</Text>
+          <Text className="text-gray-400 text-sm">
+            Already have an account?{" "}
+          </Text>
+          <TouchableOpacity onPress={() => router.back()}>
+            <Text className="text-white text-sm font-semibold">Sign In</Text>
           </TouchableOpacity>
         </View>
       </View>

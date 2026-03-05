@@ -35,6 +35,8 @@ export interface Conversation {
   is_muted: boolean;
   created_at: string;
   updated_at: string;
+  isChannel: boolean;
+  channel_id?: string;
 }
 
 export interface PaginationParams {

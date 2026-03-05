@@ -1,16 +1,20 @@
 import { Tabs } from "expo-router";
 import { AntDesign, Ionicons } from "@expo/vector-icons";
-
-// ALL TABS REGISTERED PUT IT HERE
+import { useWebSocketStore } from "@/store/useWebSocketStore";
 
 export default function TabsLayout() {
+  const totalUnread = useWebSocketStore((state) =>
+    state.conversations.reduce(
+      (sum, conv) => sum + (conv.unread_count ?? 0),
+      0,
+    ),
+  );
+
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          display: "flex",
-          justifyContent: "center",
           backgroundColor: "#1f2937",
           borderTopColor: "#374151",
         },
@@ -31,17 +35,19 @@ export default function TabsLayout() {
         name="messages"
         options={{
           title: "Messages",
+          tabBarBadge:
+            totalUnread > 0
+              ? totalUnread > 99
+                ? "99+"
+                : totalUnread
+              : undefined,
+          tabBarBadgeStyle: { backgroundColor: "#ef4444", fontSize: 10 },
           tabBarIcon: ({ color, size }) => (
             <AntDesign name="message" size={size} color={color} />
           ),
         }}
       />
-      <Tabs.Screen
-        name="messages/[id]"
-        options={{
-          href: null, // This hides it from the tab bar
-        }}
-      />
+      <Tabs.Screen name="messages/[id]" options={{ href: null }} />
       <Tabs.Screen
         name="channels"
         options={{

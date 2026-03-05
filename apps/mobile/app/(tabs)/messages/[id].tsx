@@ -9,11 +9,12 @@ import {
   Platform,
   ActivityIndicator,
 } from "react-native";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useChatMessages } from "@/hooks/useChatMessages";
 import { formatMessageTime } from "@/utils/formats";
 import { MESSAGE_MAX_LENGTH } from "@/constant/chats";
+import { useWebSocketStore } from "@/store/useWebSocketStore";
 
 export default function ChatScreen() {
   const router = useRouter();
@@ -23,6 +24,14 @@ export default function ChatScreen() {
     name: string;
     description: string;
   }>();
+
+  const markConversationAsRead = useWebSocketStore(
+    (state) => state.markConversationAsRead,
+  );
+
+  useFocusEffect(() => {
+    if (id) markConversationAsRead(id);
+  });
 
   const { messages, loading, send, userId } = useChatMessages(id, type);
   const [inputText, setInputText] = useState("");

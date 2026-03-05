@@ -1,3 +1,4 @@
+import { AvatarBadge } from "@/components/shared/AvatarBadge";
 import { SettingItem } from "@/components/shared/SettingItems";
 import { useAuth } from "@/hooks/useAuth";
 import { useSettingsStore } from "@/store/useSettingStore";
@@ -69,14 +70,9 @@ export default function SettingsScreen() {
       <ScrollView className="flex-1" contentContainerClassName="px-6 py-6">
         <View className="from-blue-500 to-purple-600 rounded-3xl p-6 mb-6 border border-blue-400/20">
           <View className="flex-row items-center mb-4">
-            <View className="w-20 h-20 bg-white rounded-2xl items-center justify-center">
-              <Text className="text-blue-600 text-2xl font-bold">
-                {user?.username}
-              </Text>
-            </View>
             <View className="flex-1 ml-4">
               <Text className="text-white text-2xl font-bold">
-                {user?.username}
+                {user?.name}
               </Text>
               <Text className="text-blue-100 text-sm mt-1">{user?.email}</Text>
             </View>

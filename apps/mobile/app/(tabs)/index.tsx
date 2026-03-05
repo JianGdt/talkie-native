@@ -22,13 +22,15 @@ export default function HomeScreen() {
     },
   ];
 
+  console.log("USER", user);
+
   return (
     <ScrollView className="flex-1 bg-gray-900">
       <View className="px-6 pt-16 pb-6">
         <Text className="text-4xl font-bold text-white mb-2">
           Welcome Back! 👋
         </Text>
-        <Text className="text-gray-400 text-base">{user?.email}</Text>
+        <Text className="text-gray-400 text-base">{user?.name}</Text>
       </View>
 
       <View className="px-6 pb-6 space-y-4">
