@@ -1,6 +1,7 @@
 import React from "react";
 import { ScrollView, TouchableOpacity, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { THEME } from "@/constant/theme";
 
 export interface FilterItem<T extends string = string> {
   id: T;
@@ -29,29 +30,29 @@ export function FilterBtn<T extends string = string>({
       <TouchableOpacity
         key={filter.id}
         onPress={() => onSelect(filter.id)}
-        className={`px-4 py-3 rounded-2xl flex-row items-center gap-3 ${
-          isActive
-            ? "border border-blue-500 bg-blue-500/20 backdrop-blur-sm"
-            : "bg-slate-900/50 backdrop-blur-sm border border-slate-800/50"
-        }`}
+        className="px-4 py-3 rounded-2xl flex-row items-center gap-3 border"
+        style={{
+          backgroundColor: isActive ? THEME.accent : THEME.inputBg,
+          borderColor: isActive ? THEME.accent : THEME.borderStrong,
+        }}
         activeOpacity={0.7}
       >
         {filter.icon && (
           <Ionicons
             name={filter.icon as any}
             size={18}
-            color={isActive ? "white" : "#64748b"}
+            color={isActive ? "white" : THEME.textMuted}
           />
         )}
         <Text
           className={`font-semibold text-xs ${
-            isActive ? "text-white" : "text-slate-400"
+            isActive ? "text-white" : "text-gray-600"
           }`}
         >
           {filter.label}
         </Text>
         {isActive && activeCount !== undefined && (
-          <View className="ml-1 bg-white/20 rounded-full px-2 py-2">
+          <View className="ml-1 bg-white/25 rounded-full px-2 py-0.5">
             <Text className="text-white text-xs font-bold">{activeCount}</Text>
           </View>
         )}
@@ -64,7 +65,7 @@ export function FilterBtn<T extends string = string>({
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        className="px-6 py-5"
+        className="px-6 py-4 border-b border-gray-100 bg-white"
         contentContainerClassName="gap-3"
       >
         {pills}
@@ -72,5 +73,9 @@ export function FilterBtn<T extends string = string>({
     );
   }
 
-  return <View className="flex-row px-6 py-4 gap-4">{pills}</View>;
+  return (
+    <View className="flex-row px-6 py-4 gap-3 border-b border-gray-100 bg-white">
+      {pills}
+    </View>
+  );
 }

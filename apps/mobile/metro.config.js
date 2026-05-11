@@ -6,3 +6,4 @@ const config = getDefaultConfig(__dirname);
 module.exports = withUniwindConfig(config, {
   cssEntryFile: "./app/global.css",
 });
+

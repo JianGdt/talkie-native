@@ -11,6 +11,8 @@ import {
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { router } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import { THEME } from "@/constant/theme";
 
 export default function RegisterScreen() {
   const { signUpWithEmail } = useAuth();
@@ -19,6 +21,8 @@ export default function RegisterScreen() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const handleRegister = async () => {
     if (!fullName.trim() || !email.trim() || !password.trim()) {
@@ -48,34 +52,29 @@ export default function RegisterScreen() {
 
   return (
     <KeyboardAvoidingView
-      className="flex-1 bg-gray-900"
+      className="flex-1 bg-white"
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
       <View className="flex-1 justify-center px-6">
         <View className="mb-12">
-          <Text
-            style={{ fontFamily: "Poppins_600SemiBold" }}
-            className="text-6xl text-white mb-2"
-          >
-            Wave
-          </Text>
-          <Text className="text-gray-400 text-base">Create your account</Text>
+          <Text className="text-5xl text-gray-900 mb-2 font-bold">Wave</Text>
+          <Text className="text-gray-500 text-base">Create your account</Text>
         </View>
 
         <View className="gap-y-4">
           <TextInput
-            className="bg-gray-800 text-white rounded-xl px-4 py-4 text-base"
+            className="bg-gray-100 text-gray-900 rounded-2xl px-4 py-4 text-base border border-gray-100"
             placeholder="Full name"
-            placeholderTextColor="#9ca3af"
+            placeholderTextColor={THEME.textSubtle}
             autoCapitalize="words"
             value={fullName}
             onChangeText={setFullName}
           />
 
           <TextInput
-            className="bg-gray-800 text-white rounded-xl px-4 py-4 text-base"
+            className="bg-gray-100 text-gray-900 rounded-2xl px-4 py-4 text-base border border-gray-100"
             placeholder="Email"
-            placeholderTextColor="#9ca3af"
+            placeholderTextColor={THEME.textSubtle}
             keyboardType="email-address"
             autoCapitalize="none"
             autoCorrect={false}
@@ -83,36 +82,66 @@ export default function RegisterScreen() {
             onChangeText={setEmail}
           />
 
-          <TextInput
-            className="bg-gray-800 text-white rounded-xl px-4 py-4 text-base"
-            placeholder="Password"
-            placeholderTextColor="#9ca3af"
-            secureTextEntry
-            value={password}
-            onChangeText={setPassword}
-          />
+          <View className="relative">
+            <TextInput
+              className="bg-gray-100 text-gray-900 rounded-2xl pl-4 pr-12 py-4 text-base border border-gray-100"
+              placeholder="Password"
+              placeholderTextColor={THEME.textSubtle}
+              secureTextEntry={!showPassword}
+              value={password}
+              onChangeText={setPassword}
+            />
+            <TouchableOpacity
+              className="absolute right-3 top-0 bottom-0 justify-center"
+              activeOpacity={0.7}
+              onPress={() => setShowPassword((v) => !v)}
+              accessibilityRole="button"
+              accessibilityLabel={showPassword ? "Hide password" : "Show password"}
+            >
+              <Ionicons
+                name={showPassword ? "eye-off" : "eye"}
+                size={20}
+                color={THEME.textSubtle}
+              />
+            </TouchableOpacity>
+          </View>
 
-          <TextInput
-            className="bg-gray-800 text-white rounded-xl px-4 py-4 text-base"
-            placeholder="Confirm password"
-            placeholderTextColor="#9ca3af"
-            secureTextEntry
-            value={confirmPassword}
-            onChangeText={setConfirmPassword}
-          />
+          <View className="relative">
+            <TextInput
+              className="bg-gray-100 text-gray-900 rounded-2xl pl-4 pr-12 py-4 text-base border border-gray-100"
+              placeholder="Confirm password"
+              placeholderTextColor={THEME.textSubtle}
+              secureTextEntry={!showConfirmPassword}
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+            />
+            <TouchableOpacity
+              className="absolute right-3 top-0 bottom-0 justify-center"
+              activeOpacity={0.7}
+              onPress={() => setShowConfirmPassword((v) => !v)}
+              accessibilityRole="button"
+              accessibilityLabel={
+                showConfirmPassword ? "Hide password" : "Show password"
+              }
+            >
+              <Ionicons
+                name={showConfirmPassword ? "eye-off" : "eye"}
+                size={20}
+                color={THEME.textSubtle}
+              />
+            </TouchableOpacity>
+          </View>
 
           <TouchableOpacity
-            className="bg-white rounded-xl py-4 items-center mt-2"
+            className="rounded-2xl py-4 items-center mt-2"
+            style={{ backgroundColor: THEME.accent }}
             onPress={handleRegister}
             disabled={submitting}
           >
             {submitting ? (
-              <ActivityIndicator color="#111827" />
+              <ActivityIndicator color="white" />
             ) : (
-              <Text
-                style={{ fontFamily: "Poppins_600SemiBold" }}
-                className="text-gray-900 text-base"
-              >
+              <Text className="text-white text-base font-semibold">
                 Create Account
               </Text>
             )}
@@ -120,11 +149,16 @@ export default function RegisterScreen() {
         </View>
 
         <View className="flex-row justify-center mt-8">
-          <Text className="text-gray-400 text-sm">
+          <Text className="text-gray-500 text-sm">
             Already have an account?{" "}
           </Text>
           <TouchableOpacity onPress={() => router.back()}>
-            <Text className="text-white text-sm font-semibold">Sign In</Text>
+            <Text
+              className="text-sm font-semibold"
+              style={{ color: THEME.accent }}
+            >
+              Sign In
+            </Text>
           </TouchableOpacity>
         </View>
       </View>

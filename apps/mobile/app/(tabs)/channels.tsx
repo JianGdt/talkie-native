@@ -11,8 +11,8 @@ import { useChannels } from "@/hooks/useChannels";
 import { getCategoryIcon, type Channel } from "@/utils/channels";
 import CreateChannelModal from "@/components/modal/CreateChannel";
 import { CHANNEL_CATEGORIES } from "@/constant/chats";
+import { THEME } from "@/constant/theme";
 import { AvatarBadge } from "@/components/shared/AvatarBadge";
-import { BackgroundGlow } from "@/components/shared/BackgroundGlow";
 import { ScreenHeader } from "@/components/shared/ScreenHeader";
 import { SearchBar } from "@/components/shared/SearchBar";
 import { FilterBtn } from "@/components/shared/Filter";
@@ -42,14 +42,17 @@ export default function ChannelsScreen() {
       onPress={() => handleJoinChannel(item)}
     >
       <View
-        className={`bg-slate-900/50 backdrop-blur-xl rounded-3xl overflow-hidden border ${
-          item.isActive
-            ? "border-blue-500/50 shadow-lg shadow-blue-500/20"
-            : "border-slate-800/50"
+        className={`bg-white rounded-3xl overflow-hidden border ${
+          item.isActive ? "border-emerald-300" : "border-gray-100"
         }`}
+        style={
+          item.isActive
+            ? { shadowColor: THEME.accent, shadowOpacity: 0.12, shadowRadius: 8 }
+            : undefined
+        }
       >
         {item.isActive && (
-          <View className="h-1 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500" />
+          <View className="h-1" style={{ backgroundColor: THEME.accent }} />
         )}
 
         <View className="p-5">
@@ -65,22 +68,31 @@ export default function ChannelsScreen() {
 
               <View className="flex-1 pt-0.5">
                 <View className="flex-row items-center gap-2 mb-1.5">
-                  <Text className="text-white text-lg font-bold tracking-tight">
+                  <Text className="text-gray-900 text-lg font-bold tracking-tight">
                     {item.name}
                   </Text>
                   {item.isActive && (
-                    <View className="bg-blue-500/20 px-2.5 py-1 rounded-full border border-blue-500/30">
-                      <Text className="text-blue-300 text-xs font-semibold tracking-wide">
+                    <View
+                      className="px-2.5 py-1 rounded-full border"
+                      style={{
+                        backgroundColor: THEME.accentSoft,
+                        borderColor: THEME.accent,
+                      }}
+                    >
+                      <Text
+                        className="text-xs font-semibold tracking-wide"
+                        style={{ color: THEME.accent }}
+                      >
                         JOINED
                       </Text>
                     </View>
                   )}
                 </View>
-                <Text className="text-slate-400 text-sm leading-5 mb-2">
+                <Text className="text-gray-500 text-sm leading-5 mb-2">
                   {item.description}
                 </Text>
                 {item.lastActivity && (
-                  <Text className="text-slate-500 text-xs">
+                  <Text className="text-gray-400 text-xs">
                     Last activity: {item.lastActivity}
                   </Text>
                 )}
@@ -88,30 +100,30 @@ export default function ChannelsScreen() {
             </View>
           </View>
 
-          <View className="flex-row items-center justify-between pt-4 border-t border-slate-800/50">
+          <View className="flex-row items-center justify-between pt-4 border-t border-gray-100">
             <View className="flex-row items-center gap-5">
               <View className="flex-row items-center gap-2">
-                <View className="w-8 h-8 bg-slate-800/50 rounded-lg items-center justify-center">
-                  <Ionicons name="people" size={16} color="#64748b" />
+                <View className="w-8 h-8 bg-gray-100 rounded-lg items-center justify-center">
+                  <Ionicons name="people" size={16} color={THEME.textMuted} />
                 </View>
                 <View>
-                  <Text className="text-slate-400 text-xs">Members</Text>
-                  <Text className="text-white text-sm font-semibold">
+                  <Text className="text-gray-400 text-xs">Members</Text>
+                  <Text className="text-gray-900 text-sm font-semibold">
                     {item.members}
                   </Text>
                 </View>
               </View>
 
               <View className="flex-row items-center gap-2">
-                <View className="w-8 h-8 bg-slate-800/50 rounded-lg items-center justify-center">
+                <View className="w-8 h-8 bg-gray-100 rounded-lg items-center justify-center">
                   <View
-                    className={`w-2.5 h-2.5 rounded-full ${item.members > 5 ? "bg-emerald-400" : "bg-slate-600"}`}
+                    className={`w-2.5 h-2.5 rounded-full ${item.members > 5 ? "bg-emerald-500" : "bg-gray-300"}`}
                   />
                 </View>
                 <View>
-                  <Text className="text-slate-400 text-xs">Status</Text>
+                  <Text className="text-gray-400 text-xs">Status</Text>
                   <Text
-                    className={`text-sm font-semibold ${item.members > 5 ? "text-emerald-400" : "text-slate-400"}`}
+                    className={`text-sm font-semibold ${item.members > 5 ? "text-emerald-600" : "text-gray-400"}`}
                   >
                     {item.members > 5 ? "Active" : "Quiet"}
                   </Text>
@@ -120,11 +132,12 @@ export default function ChannelsScreen() {
             </View>
 
             <TouchableOpacity
-              className={`px-6 py-3 rounded-2xl shadow-lg ${
-                item.isActive
-                  ? "bg-slate-800/80 border border-slate-700"
-                  : "bg-gradient-to-r from-blue-500 to-blue-600"
+              className={`px-6 py-3 rounded-2xl ${
+                item.isActive ? "bg-gray-100 border border-gray-200" : ""
               }`}
+              style={
+                !item.isActive ? { backgroundColor: THEME.accent } : undefined
+              }
               activeOpacity={0.8}
               onPress={(e) => {
                 e.stopPropagation();
@@ -137,10 +150,10 @@ export default function ChannelsScreen() {
                 <Ionicons
                   name={item.isActive ? "exit-outline" : "enter-outline"}
                   size={18}
-                  color={item.isActive ? "#94a3b8" : "white"}
+                  color={item.isActive ? THEME.textMuted : "white"}
                 />
                 <Text
-                  className={`font-bold text-sm ${item.isActive ? "text-slate-400" : "text-white"}`}
+                  className={`font-bold text-sm ${item.isActive ? "text-gray-600" : "text-white"}`}
                 >
                   {item.isActive ? "Leave" : "Join"}
                 </Text>
@@ -154,23 +167,16 @@ export default function ChannelsScreen() {
 
   if (loading) {
     return (
-      <View className="flex-1 bg-slate-950 items-center justify-center">
-        <ActivityIndicator size="large" color="#3b82f6" />
-        <Text className="text-slate-400 mt-4">Loading channels...</Text>
+      <View className="flex-1 bg-white items-center justify-center">
+        <ActivityIndicator size="large" color={THEME.accent} />
+        <Text className="text-gray-500 mt-4">Loading channels...</Text>
       </View>
     );
   }
 
   return (
-    <View className="flex-1 bg-slate-950">
-      <BackgroundGlow
-        glows={[
-          { position: "top-left", color: "blue" },
-          { position: "bottom-right", color: "purple" },
-        ]}
-      />
-
-      <View className="bg-slate-900/80 backdrop-blur-xl px-6 pt-16 pb-6 border-b border-slate-800/50">
+    <View className="flex-1 bg-white">
+      <View className="bg-white px-6 pt-14 pb-4 border-b border-gray-100">
         <ScreenHeader
           title="Channels"
           subtitle={`${filteredChannels.length} available`}
@@ -183,15 +189,13 @@ export default function ChannelsScreen() {
         />
       </View>
 
-      <View className="border-b border-slate-800/50">
-        <FilterBtn
-          filters={CHANNEL_CATEGORIES}
-          selected={selectedCategory}
-          onSelect={setSelectedCategory}
-          activeCount={filteredChannels.length}
-          scrollable
-        />
-      </View>
+      <FilterBtn
+        filters={CHANNEL_CATEGORIES}
+        selected={selectedCategory}
+        onSelect={setSelectedCategory}
+        activeCount={filteredChannels.length}
+        scrollable
+      />
 
       <FlatList
         data={filteredChannels}

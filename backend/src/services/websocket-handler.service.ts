@@ -166,6 +166,23 @@ class WebSocketHandler {
         timestamp: Date.now(),
       });
 
+      // Send a presence snapshot to the newly connected client so it can
+      // immediately reflect who is online (not only future updates).
+      try {
+        const onlineUserIds = await this.activeUserService!.getOnlineUserIds();
+        onlineUserIds
+          .filter((id) => id && id !== userId)
+          .forEach((id) => {
+            this.sendMessage(ws, {
+              type: "presence_update" as any,
+              payload: { userId: id, status: "online" },
+              timestamp: Date.now(),
+            });
+          });
+      } catch (err) {
+        console.error("❌ Failed to send presence snapshot:", err);
+      }
+
       this.broadcastPresenceUpdate(userId, "online");
     } catch (error) {
       this.sendMessage(ws, {
@@ -246,6 +263,39 @@ class WebSocketHandler {
     const realUserId = connection.userId;
 
     switch (message.type) {
+      // ─────────────────────────────────────────────
+      // Calls (WebRTC signaling): forward to a userId
+      // payload must include `toUserId`
+      // ─────────────────────────────────────────────
+      case MessageType.CALL_INVITE:
+      case MessageType.CALL_ACCEPT:
+      case MessageType.CALL_REJECT:
+      case MessageType.CALL_END:
+      case MessageType.WEBRTC_OFFER:
+      case MessageType.WEBRTC_ANSWER:
+      case MessageType.WEBRTC_ICE_CANDIDATE: {
+        const toUserId = (message.payload as any)?.toUserId as string | undefined;
+        if (!toUserId) {
+          this.sendError(ws, "Missing payload.toUserId");
+          break;
+        }
+
+        const target = connectionManager.getConnection(toUserId);
+        if (!target?.isAuthenticated) {
+          this.sendError(ws, "User is not connected");
+          break;
+        }
+
+        this.sendMessage(target.ws, {
+          type: message.type,
+          payload: {
+            ...(message.payload as any),
+            fromUserId: realUserId,
+          },
+          timestamp: Date.now(),
+        });
+        break;
+      }
       case MessageType.START_TRANSMISSION:
         this.handleStartTransmission(realUserId, message.payload);
         break;

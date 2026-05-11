@@ -10,10 +10,10 @@ interface SettingsState {
 
   hydrate: () => Promise<void>;
 
-  setPushNotifications: (v: boolean) => void;
-  setSoundEffects: (v: boolean) => void;
-  setHapticFeedback: (v: boolean) => void;
-  setAutoJoin: (v: boolean) => void;
+  setPushNotifications: (isVolume: boolean) => void;
+  setSoundEffects: (isVolume: boolean) => void;
+  setHapticFeedback: (isVolume: boolean) => void;
+  setAutoJoin: (isVolume: boolean) => void;
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
@@ -36,35 +36,35 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     }
   },
 
-  setPushNotifications: async (v) => {
-    set({ pushNotifications: v });
+  setPushNotifications: async (isVolume: boolean) => {
+    set({ pushNotifications: isVolume });
     await AsyncStorage.setItem(
       "app-settings",
-      JSON.stringify({ ...get(), pushNotifications: v }),
+      JSON.stringify({ ...get(), pushNotifications: isVolume }),
     );
   },
 
-  setSoundEffects: async (v) => {
-    set({ soundEffects: v });
+  setSoundEffects: async (isVolume: boolean) => {
+    set({ soundEffects: isVolume });
     await AsyncStorage.setItem(
       "app-settings",
-      JSON.stringify({ ...get(), soundEffects: v }),
+      JSON.stringify({ ...get(), soundEffects: isVolume }),
     );
   },
 
-  setHapticFeedback: async (v) => {
-    set({ hapticFeedback: v });
+  setHapticFeedback: async (isVolume: boolean) => {
+    set({ hapticFeedback: isVolume });
     await AsyncStorage.setItem(
       "app-settings",
-      JSON.stringify({ ...get(), hapticFeedback: v }),
+      JSON.stringify({ ...get(), hapticFeedback: isVolume }),
     );
   },
 
-  setAutoJoin: async (v) => {
-    set({ autoJoin: v });
+  setAutoJoin: async (isVolume: boolean) => {
+    set({ autoJoin: isVolume });
     await AsyncStorage.setItem(
       "app-settings",
-      JSON.stringify({ ...get(), autoJoin: v }),
+      JSON.stringify({ ...get(), autoJoin: isVolume }),
     );
   },
 }));

@@ -10,9 +10,8 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useAuth } from "@/hooks/useAuth";
 import { channelService } from "@/api/services/channelServices";
-import { supabase } from "@/lib/supabase/client";
+import { THEME } from "@/constant/theme";
 
 interface CreateChannelModalProps {
   visible: boolean;
@@ -25,7 +24,6 @@ export default function CreateChannelModal({
   onClose,
   onChannelCreated,
 }: CreateChannelModalProps) {
-  const { user } = useAuth();
   const [channelName, setChannelName] = useState("");
   const [description, setDescription] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<
@@ -65,10 +63,6 @@ export default function CreateChannelModal({
 
     try {
       setCreating(true);
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
       const newChannel = await channelService.createChannel({
         name: channelName.trim(),
         description: description.trim() || undefined,
@@ -96,30 +90,30 @@ export default function CreateChannelModal({
       case "emerald":
         return {
           bg: "bg-emerald-500",
-          bgSelected: "bg-emerald-500/20",
+          bgSelected: "bg-emerald-50",
           border: "border-emerald-500",
-          text: "text-emerald-400",
+          text: "text-emerald-600",
         };
       case "purple":
         return {
           bg: "bg-purple-500",
-          bgSelected: "bg-purple-500/20",
+          bgSelected: "bg-purple-50",
           border: "border-purple-500",
-          text: "text-purple-400",
+          text: "text-purple-600",
         };
       case "blue":
         return {
           bg: "bg-blue-500",
-          bgSelected: "bg-blue-500/20",
+          bgSelected: "bg-blue-50",
           border: "border-blue-500",
-          text: "text-blue-400",
+          text: "text-blue-600",
         };
       default:
         return {
-          bg: "bg-slate-500",
-          bgSelected: "bg-slate-500/20",
-          border: "border-slate-500",
-          text: "text-slate-400",
+          bg: "bg-gray-500",
+          bgSelected: "bg-gray-50",
+          border: "border-gray-500",
+          text: "text-gray-600",
         };
     }
   };
@@ -131,23 +125,18 @@ export default function CreateChannelModal({
       transparent={false}
       onRequestClose={onClose}
     >
-      <View className="flex-1 bg-slate-950">
-        <View className="absolute inset-0 opacity-20">
-          <View className="absolute top-0 right-0 w-96 h-96 bg-blue-500/30 rounded-full blur-3xl" />
-          <View className="absolute bottom-0 left-0 w-96 h-96 bg-purple-500/30 rounded-full blur-3xl" />
-        </View>
-
-        <View className="bg-slate-900/80 backdrop-blur-xl px-6 pt-16 pb-6 border-b border-slate-800/50">
+      <View className="flex-1 bg-white">
+        <View className="bg-white px-6 pt-14 pb-6 border-b border-gray-100">
           <View className="flex-row items-center justify-between">
             <TouchableOpacity
-              className="w-10 h-10 bg-slate-800/50 rounded-xl items-center justify-center"
+              className="w-10 h-10 bg-gray-100 rounded-xl items-center justify-center"
               onPress={onClose}
               disabled={creating}
             >
-              <Ionicons name="close" size={24} color="#94a3b8" />
+              <Ionicons name="close" size={24} color={THEME.textMuted} />
             </TouchableOpacity>
 
-            <Text className="text-white text-2xl font-bold tracking-tight">
+            <Text className="text-gray-900 text-2xl font-bold tracking-tight">
               Create Channel
             </Text>
 
@@ -156,39 +145,39 @@ export default function CreateChannelModal({
         </View>
 
         <ScrollView
-          className="flex-1"
+          className="flex-1 bg-gray-50"
           contentContainerClassName="px-6 py-8"
           showsVerticalScrollIndicator={false}
         >
           <View className="mb-6">
-            <Text className="text-slate-400 text-sm font-semibold mb-3">
+            <Text className="text-gray-600 text-sm font-semibold mb-3">
               CHANNEL NAME *
             </Text>
-            <View className="bg-slate-900/50 rounded-2xl border border-slate-800/50 px-5 py-4">
+            <View className="bg-white rounded-2xl border border-gray-200 px-5 py-4">
               <TextInput
-                className="text-white text-base"
+                className="text-gray-900 text-base"
                 placeholder="e.g., General Discussion"
-                placeholderTextColor="#64748b"
+                placeholderTextColor={THEME.textSubtle}
                 value={channelName}
                 onChangeText={setChannelName}
                 maxLength={50}
                 autoFocus
               />
             </View>
-            <Text className="text-slate-600 text-xs mt-2">
+            <Text className="text-gray-400 text-xs mt-2">
               {channelName.length}/50 characters
             </Text>
           </View>
 
           <View className="mb-6">
-            <Text className="text-slate-400 text-sm font-semibold mb-3">
+            <Text className="text-gray-600 text-sm font-semibold mb-3">
               DESCRIPTION (OPTIONAL)
             </Text>
-            <View className="bg-slate-900/50 rounded-2xl border border-slate-800/50 px-5 py-4">
+            <View className="bg-white rounded-2xl border border-gray-200 px-5 py-4">
               <TextInput
-                className="text-white text-base"
+                className="text-gray-900 text-base"
                 placeholder="What's this channel about?"
-                placeholderTextColor="#64748b"
+                placeholderTextColor={THEME.textSubtle}
                 value={description}
                 onChangeText={setDescription}
                 multiline
@@ -197,13 +186,13 @@ export default function CreateChannelModal({
                 textAlignVertical="top"
               />
             </View>
-            <Text className="text-slate-600 text-xs mt-2">
+            <Text className="text-gray-400 text-xs mt-2">
               {description.length}/200 characters
             </Text>
           </View>
 
           <View className="mb-8">
-            <Text className="text-slate-400 text-sm font-semibold mb-3">
+            <Text className="text-gray-600 text-sm font-semibold mb-3">
               CHANNEL TYPE
             </Text>
 
@@ -214,10 +203,10 @@ export default function CreateChannelModal({
               return (
                 <TouchableOpacity
                   key={category.id}
-                  className={`mb-3 p-4 rounded-2xl border ${
+                  className={`mb-3 p-4 rounded-2xl border bg-white ${
                     isSelected
                       ? `${colors.bgSelected} ${colors.border}`
-                      : "bg-slate-900/50 border-slate-800/50"
+                      : "border-gray-200"
                   }`}
                   activeOpacity={0.7}
                   onPress={() => setSelectedCategory(category.id)}
@@ -234,10 +223,10 @@ export default function CreateChannelModal({
                     </View>
 
                     <View className="flex-1">
-                      <Text className="text-white text-base font-bold mb-1">
+                      <Text className="text-gray-900 text-base font-bold mb-1">
                         {category.label}
                       </Text>
-                      <Text className="text-slate-400 text-sm">
+                      <Text className="text-gray-500 text-sm">
                         {category.description}
                       </Text>
                     </View>
@@ -255,8 +244,8 @@ export default function CreateChannelModal({
             })}
           </View>
 
-          <View className="bg-slate-900/50 rounded-2xl border border-slate-800/50 p-5 mb-6">
-            <Text className="text-slate-400 text-sm font-semibold mb-3">
+          <View className="bg-white rounded-2xl border border-gray-200 p-5 mb-6">
+            <Text className="text-gray-600 text-sm font-semibold mb-3">
               PREVIEW
             </Text>
 
@@ -280,21 +269,27 @@ export default function CreateChannelModal({
               </View>
 
               <View className="flex-1">
-                <Text className="text-white text-lg font-bold mb-1">
+                <Text className="text-gray-900 text-lg font-bold mb-1">
                   {channelName || "Channel Name"}
                 </Text>
-                <Text className="text-slate-400 text-sm">
+                <Text className="text-gray-500 text-sm">
                   {description || "No description"}
                 </Text>
               </View>
             </View>
           </View>
 
-          <View className="bg-blue-500/10 rounded-2xl border border-blue-500/30 p-4 mb-6">
+          <View
+            className="rounded-2xl border p-4 mb-6"
+            style={{
+              backgroundColor: THEME.accentSoft,
+              borderColor: THEME.accent,
+            }}
+          >
             <View className="flex-row items-start gap-3">
-              <Ionicons name="information-circle" size={24} color="#3b82f6" />
+              <Ionicons name="information-circle" size={24} color={THEME.accent} />
               <View className="flex-1">
-                <Text className="text-blue-400 text-sm leading-relaxed">
+                <Text className="text-gray-700 text-sm leading-relaxed">
                   {selectedCategory === "public" &&
                     "Anyone can find and join this channel. Great for general discussions."}
                   {selectedCategory === "private" &&
@@ -307,13 +302,16 @@ export default function CreateChannelModal({
           </View>
         </ScrollView>
 
-        <View className="px-6 pb-8 pt-4 bg-slate-900/80 backdrop-blur-xl border-t border-slate-800/50">
+        <View className="px-6 pb-8 pt-4 bg-white border-t border-gray-100">
           <TouchableOpacity
             className={`py-4 rounded-2xl ${
-              channelName.trim() && !creating
-                ? "bg-gradient-to-r from-blue-500 to-blue-600"
-                : "bg-slate-800"
+              channelName.trim() && !creating ? "" : "bg-gray-200"
             }`}
+            style={
+              channelName.trim() && !creating
+                ? { backgroundColor: THEME.accent }
+                : undefined
+            }
             activeOpacity={0.8}
             onPress={handleCreate}
             disabled={!channelName.trim() || creating}

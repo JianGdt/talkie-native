@@ -3,11 +3,17 @@
 
 @theme {
   --app-max-width: 480px;
+
+  --font-sans: "Geist_400Regular", system-ui, sans-serif;
+  --font-medium: "Geist_500Medium", system-ui, sans-serif;
+  --font-semibold: "Geist_600SemiBold", system-ui, sans-serif;
+  --font-bold: "Geist_700Bold", system-ui, sans-serif;
 }
 
 body {
+  font-family: var(--font-sans);
   align-self: center;
-  background-color: #121212;
+  background-color: #ffffff;
   max-width: var(--app-max-width);
   position: relative;
   --color: #ff9494;

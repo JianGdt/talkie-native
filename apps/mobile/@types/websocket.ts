@@ -33,4 +33,48 @@ export interface WebSocketStore {
     isOwn: boolean,
   ) => void;
   markConversationAsRead: (conversationId: string) => void;
+
+  typingUsers: Record<string, Set<string>>; 
+  setTypingUser: (
+    conversationId: string,
+    userId: string,
+    isTyping: boolean,
+  ) => void;
+  isUserTyping: (conversationId: string, userId: string) => boolean;
+
+  // Calls (WebRTC)
+  activeCall:
+    | null
+    | {
+        callId: string;
+        otherUserId: string;
+        conversationId?: string;
+        otherUserName?: string;
+        isIncoming: boolean;
+        status:
+          | "idle"
+          | "ringing"
+          | "connecting"
+          | "in_call"
+          | "ended"
+          | "rejected";
+        offer?: any;
+      };
+  setActiveCall: (call: WebSocketStore["activeCall"]) => void;
+  sendCallInvite: (params: {
+    toUserId: string;
+    callId: string;
+    conversationId?: string;
+    name?: string;
+  }) => void;
+  sendCallAccept: (params: { toUserId: string; callId: string }) => void;
+  sendCallReject: (params: { toUserId: string; callId: string }) => void;
+  sendCallEnd: (params: { toUserId: string; callId: string }) => void;
+  sendWebRTCOffer: (params: { toUserId: string; callId: string; offer: any }) => void;
+  sendWebRTCAnswer: (params: { toUserId: string; callId: string; answer: any }) => void;
+  sendWebRTCIceCandidate: (params: {
+    toUserId: string;
+    callId: string;
+    candidate: any;
+  }) => void;
 }

@@ -35,9 +35,6 @@ export function useChannels(): UseChannelsReturn {
   const [selectedCategory, setSelectedCategory] =
     useState<ChannelCategoryType>("all");
 
-  // ── Data fetching ──────────────────────────────────────────
-  // GET /api/channels now returns isMember on each channel,
-  // so a single fetch is enough — no separate getUserChannels call needed.
   const fetchChannels = useCallback(async () => {
     try {
       const data = await channelService.getChannels();
@@ -73,14 +70,12 @@ export function useChannels(): UseChannelsReturn {
     reloadData().finally(() => setRefreshing(false));
   }, [reloadData]);
 
-  // ── Optimistic update helper ───────────────────────────────
   const setMembership = useCallback((channelId: string, isMember: boolean) => {
     setChannels((prev) =>
       prev.map((c) => (c.id === channelId ? { ...c, isActive: isMember } : c)),
     );
   }, []);
 
-  // ── Join: REST first, then WS subscribe ───────────────────
   const handleJoinChannel = useCallback(
     async (channel: Channel) => {
       if (!isAuthenticated) {
@@ -92,7 +87,6 @@ export function useChannels(): UseChannelsReturn {
         return;
       }
 
-      // Optimistic UI update
       setMembership(channel.id, true);
 
       try {

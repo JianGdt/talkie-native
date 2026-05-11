@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useState } from "react";
 import {
   View,
   Text,
@@ -14,16 +14,20 @@ import type { Conversation } from "@/api/services/conversationServices";
 import { useConversations } from "@/hooks/useConversation";
 import { formatRelativeTime, formatUnreadCount } from "@/utils/formats";
 import { MESSAGE_FILTERS, STATUS_COLORS } from "@/constant/chats";
+import { THEME } from "@/constant/theme";
+import { useAuth } from "@/hooks/useAuth";
+import { useWebSocketStore } from "@/store/useWebSocketStore";
 
 import { ScreenHeader } from "@/components/shared/ScreenHeader";
 import { SearchBar } from "@/components/shared/SearchBar";
 import { AvatarBadge } from "@/components/shared/AvatarBadge";
 import { EmptyState } from "@/components/shared/EmptyState";
-import { BackgroundGlow } from "@/components/shared/BackgroundGlow";
 import { FilterBtn } from "@/components/shared/Filter";
 
 export default function MessageScreen() {
   const router = useRouter();
+  const { user } = useAuth();
+  const isUserOnline = useWebSocketStore((state) => state.isUserOnline);
   const {
     filteredConversations,
     loading,
@@ -39,10 +43,14 @@ export default function MessageScreen() {
 
   const [showUserSearch, setShowUserSearch] = useState(false);
 
-  const handleUserSelect = (conversationId: string, userName: string) => {
+  const handleUserSelect = (
+    conversationId: string,
+    userName: string,
+    userId: string,
+  ) => {
     router.push({
       pathname: "/messages/[id]",
-      params: { id: conversationId, type: "direct", name: userName },
+      params: { id: conversationId, type: "direct", name: userName, userId },
     });
     fetchConversations();
   };
@@ -54,7 +62,7 @@ export default function MessageScreen() {
       router.push({
         pathname: "/messages/[id]",
         params: {
-          id: conv.channel_id ?? conv.id, // ✅ fallback to conv.id if channel_id is undefined
+          id: conv.channel_id ?? conv.id,
           type: "channel",
           name: getUsersName(conv),
         },
@@ -62,9 +70,20 @@ export default function MessageScreen() {
       return;
     }
 
+    const directUserId =
+      conv.type === "direct"
+        ? conv.participants.find((p) => p.id !== user?.id)?.id ??
+          conv.participants[0]?.id
+        : undefined;
+
     router.push({
       pathname: "/messages/[id]",
-      params: { id: conv.id, type: conv.type, name: getUsersName(conv) },
+      params: {
+        id: conv.id,
+        type: conv.type,
+        name: getUsersName(conv),
+        ...(directUserId ? { userId: directUserId } : {}),
+      },
     });
   };
 
@@ -80,93 +99,96 @@ export default function MessageScreen() {
     const time = formatRelativeTime(item.last_message?.timestamp);
     const unread = item.unread_count;
     const isUnread = unread > 0 && !item.last_message?.isRead;
+    const otherUserId =
+      item.type === "direct"
+        ? item.participants.find((p) => p.id !== user?.id)?.id
+        : undefined;
+    const isOnline = otherUserId ? isUserOnline(otherUserId) : false;
     const statusColor =
       item.type === "direct" && item.participants[0]
-        ? (STATUS_COLORS[item.participants[0].status] ?? STATUS_COLORS.offline)
+        ? isOnline
+          ? STATUS_COLORS.online
+          : (STATUS_COLORS[item.participants[0].status] ??
+            STATUS_COLORS.offline)
         : null;
+
+    const preview =
+      item.type === "group" && item.last_message?.sender
+        ? `${item.last_message.sender}: ${item.last_message.content ?? ""}`
+        : item.last_message?.content || "No messages yet";
 
     return (
       <TouchableOpacity
-        className="mb-3"
+        className="flex-row items-center py-3.5 border-b border-gray-100 active:bg-gray-50"
         activeOpacity={0.7}
         onPress={() => handleConversationPress(item)}
       >
-        <View
-          className={`bg-slate-900/50 backdrop-blur-xl rounded-3xl overflow-hidden border ${item.is_pinned ? "border-blue-500/50" : "border-slate-800/50"}`}
-        >
-          <View className="p-4">
-            <View className="flex-row items-center gap-4">
-              <AvatarBadge
-                colorClass={
-                  item.type === "direct"
-                    ? "bg-gradient-to-br from-cyan-500 to-blue-500"
-                    : "bg-gradient-to-br from-purple-500 to-pink-500"
-                }
-                label={avatar}
-                isActive={!!statusColor && statusColor === STATUS_COLORS.online}
-                isPinned={item.is_pinned}
-                memberCount={
-                  item.type === "group" ? item.participants.length : undefined
-                }
-                unreadCount={isUnread ? unread : undefined}
-                size="md"
-              />
-
-              <View className="flex-1">
-                <View className="flex-row items-center justify-between mb-1">
-                  <View className="flex-row items-center gap-2 flex-1">
-                    <Text
-                      className={`text-base tracking-tight ${isUnread ? "text-white font-bold" : "text-slate-300 font-medium"}`}
-                    >
-                      {name}
-                    </Text>
-                    {item.is_muted && (
-                      <Ionicons name="volume-mute" size={16} color="#64748b" />
-                    )}
-                  </View>
-                  <Text
-                    className={`text-xs ${isUnread ? "text-white font-semibold" : "text-slate-500"}`}
-                  >
-                    {time}
-                  </Text>
-                </View>
-
-                <View className="flex-row items-center justify-between">
-                  <Text
-                    className={`flex-1 text-sm ${isUnread ? "text-white font-semibold" : "text-slate-400"}`}
-                    numberOfLines={1}
-                  >
-                    {item.type === "group" && item.last_message?.sender && (
-                      <Text
-                        className={
-                          isUnread ? "text-slate-300" : "text-slate-500"
-                        }
-                      >
-                        {item.last_message.sender}:{" "}
-                      </Text>
-                    )}
-                    {item.last_message?.content || "No messages yet"}
-                  </Text>
-                  {isUnread && (
-                    <View className="ml-3 bg-blue-500 rounded-full min-w-[24px] h-6 items-center justify-center px-2">
-                      <Text className="text-white text-xs font-bold">
-                        {formatUnreadCount(unread)}
-                      </Text>
-                    </View>
-                  )}
-                </View>
-
-                {item.type === "group" && item.participants.length > 0 && (
-                  <Text
-                    className="text-slate-500 text-xs mt-1"
-                    numberOfLines={1}
-                  >
-                    👥 {item.participants.map((p) => p.name).join(", ")}
-                  </Text>
-                )}
-              </View>
+        <AvatarBadge
+          colorClass={
+            item.type === "direct" ? "bg-emerald-500" : "bg-teal-500"
+          }
+          label={avatar}
+          isActive={!!statusColor && statusColor === STATUS_COLORS.online}
+          isPinned={item.is_pinned}
+          memberCount={
+            item.type === "group" ? item.participants.length : undefined
+          }
+          unreadCount={isUnread ? unread : undefined}
+          size="lg"
+        />
+        <View className="flex-1 ml-3.5 min-w-0">
+          <View className="flex-row items-center justify-between mb-0.5">
+            <View className="flex-row items-center gap-2 flex-1 pr-2">
+              <Text
+                className={`text-[16px] tracking-tight ${
+                  isUnread
+                    ? "text-gray-900 font-bold"
+                    : "text-gray-900 font-semibold"
+                }`}
+                numberOfLines={1}
+              >
+                {name}
+              </Text>
+              {item.is_muted && (
+                <Ionicons name="volume-mute" size={16} color={THEME.textSubtle} />
+              )}
             </View>
+            <Text
+              className={`text-[12px] ${
+                isUnread ? "text-emerald-600 font-semibold" : "text-gray-400"
+              }`}
+            >
+              {time}
+            </Text>
           </View>
+          <View className="flex-row items-center justify-between">
+            <Text
+              className={`flex-1 text-[14px] mr-2 ${
+                isUnread ? "text-gray-800 font-medium" : "text-gray-500"
+              }`}
+              numberOfLines={1}
+            >
+              {preview}
+            </Text>
+            {isUnread && (
+              <View
+                className="min-w-[22px] h-[22px] px-1.5 rounded-full items-center justify-center"
+                style={{ backgroundColor: THEME.accent }}
+              >
+                <Text className="text-white text-[11px] font-bold">
+                  {formatUnreadCount(unread)}
+                </Text>
+              </View>
+            )}
+          </View>
+          {item.type === "group" && item.participants.length > 0 && (
+            <Text
+              className="text-gray-400 text-[11px] mt-1"
+              numberOfLines={1}
+            >
+              {item.participants.map((p) => p.name).join(", ")}
+            </Text>
+          )}
         </View>
       </TouchableOpacity>
     );
@@ -174,18 +196,16 @@ export default function MessageScreen() {
 
   if (loading) {
     return (
-      <View className="flex-1 bg-slate-950 items-center justify-center">
-        <ActivityIndicator size="large" color="#3b82f6" />
-        <Text className="text-slate-400 mt-4">Loading conversations...</Text>
+      <View className="flex-1 bg-white items-center justify-center">
+        <ActivityIndicator size="large" color={THEME.accent} />
+        <Text className="text-gray-500 mt-4">Loading conversations...</Text>
       </View>
     );
   }
 
   return (
-    <View className="flex-1 bg-slate-950">
-      <BackgroundGlow />
-
-      <View className="bg-slate-900/80 backdrop-blur-xl px-6 pt-16 pb-6 border-b border-slate-800/50">
+    <View className="flex-1 bg-white">
+      <View className="bg-white px-6 pt-14 pb-4 border-b border-gray-100">
         <ScreenHeader
           title="Messages"
           subtitle={`${filteredConversations.length} conversations`}
@@ -198,19 +218,17 @@ export default function MessageScreen() {
         />
       </View>
 
-      <View className="border-b border-slate-800/50">
-        <FilterBtn
-          filters={MESSAGE_FILTERS}
-          selected={selectedFilter}
-          onSelect={setSelectedFilter}
-        />
-      </View>
+      <FilterBtn
+        filters={MESSAGE_FILTERS}
+        selected={selectedFilter}
+        onSelect={setSelectedFilter}
+      />
 
       <FlatList
         data={filteredConversations}
         renderItem={renderConversation}
         keyExtractor={(item) => item.id}
-        contentContainerClassName="px-6 py-5"
+        contentContainerClassName="px-6 py-2"
         showsVerticalScrollIndicator={false}
         refreshing={refreshing}
         onRefresh={handleRefresh}

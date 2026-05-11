@@ -20,7 +20,7 @@ import { debounce } from "lodash";
 import { SearchBar } from "@/components/shared/SearchBar";
 import { AvatarBadge } from "@/components/shared/AvatarBadge";
 import { EmptyState } from "@/components/shared/EmptyState";
-import { BackgroundGlow } from "@/components/shared/BackgroundGlow";
+import { THEME } from "@/constant/theme";
 
 interface User {
   id: string;
@@ -34,7 +34,7 @@ interface User {
 interface UserSearchModalProps {
   visible: boolean;
   onClose: () => void;
-  onUserSelect: (userId: string, userName: string) => void;
+  onUserSelect: (conversationId: string, userName: string, userId: string) => void;
 }
 
 export default function UserSearchModal({
@@ -103,7 +103,7 @@ export default function UserSearchModal({
       setCreating(true);
       const result = await conversationService.createDirect(selectedUser.id);
       onClose();
-      onUserSelect(result.conversationId, selectedUser.name);
+      onUserSelect(result.conversationId, selectedUser.name, selectedUser.id);
     } catch {
       Alert.alert("Error", "Failed to start conversation. Please try again.");
     } finally {
@@ -122,32 +122,35 @@ export default function UserSearchModal({
 
     return (
       <TouchableOpacity
-        className="flex-row items-center gap-4 p-4 border-b border-slate-800/50"
+        className="flex-row items-center gap-4 p-4 border-b border-gray-100"
         activeOpacity={0.7}
         onPress={() => handleUserSelect(item)}
         disabled={creating}
       >
         <AvatarBadge
-          colorClass="bg-gradient-to-br from-cyan-500 to-blue-500"
+          colorClass="bg-emerald-500"
           label={initials}
           isActive={online}
           size="sm"
         />
 
         <View className="flex-1">
-          <Text className="text-white text-base font-semibold">
+          <Text className="text-gray-900 text-base font-semibold">
             {item.name}
           </Text>
           {item.full_name && (
-            <Text className="text-slate-400 text-sm">{item.full_name}</Text>
+            <Text className="text-gray-500 text-sm">{item.full_name}</Text>
           )}
-          <Text className="text-slate-500 text-xs capitalize">
+          <Text className="text-gray-400 text-xs capitalize">
             {online ? "online" : "offline"}
           </Text>
         </View>
 
-        <View className="w-10 h-10 bg-blue-500/20 rounded-xl items-center justify-center">
-          <Ionicons name="chatbubble" size={20} color="#3b82f6" />
+        <View
+          className="w-10 h-10 rounded-xl items-center justify-center"
+          style={{ backgroundColor: THEME.accentSoft }}
+        >
+          <Ionicons name="chatbubble" size={20} color={THEME.accent} />
         </View>
       </TouchableOpacity>
     );
@@ -160,23 +163,16 @@ export default function UserSearchModal({
       transparent={false}
       onRequestClose={onClose}
     >
-      <SafeAreaView className="flex-1 bg-slate-950">
-        <BackgroundGlow
-          glows={[
-            { position: "top-right", color: "blue" },
-            { position: "bottom-left", color: "purple" },
-          ]}
-        />
-
-        <View className="bg-slate-900/80 backdrop-blur-xl px-6 pb-6 border-b border-slate-800/50">
+      <SafeAreaView className="flex-1 bg-white">
+        <View className="bg-white px-6 pb-6 border-b border-gray-100">
           <View className="flex-row items-center gap-4 mb-6 pt-4">
             <TouchableOpacity
-              className="w-10 h-10 bg-slate-800/50 rounded-xl items-center justify-center"
+              className="w-10 h-10 bg-gray-100 rounded-xl items-center justify-center"
               onPress={onClose}
             >
-              <Ionicons name="close" size={24} color="#94a3b8" />
+              <Ionicons name="close" size={24} color={THEME.textMuted} />
             </TouchableOpacity>
-            <Text className="text-white text-2xl font-bold tracking-tight flex-1">
+            <Text className="text-gray-900 text-2xl font-bold tracking-tight flex-1">
               New Message
             </Text>
           </View>
@@ -190,7 +186,7 @@ export default function UserSearchModal({
           />
 
           {error && (
-            <Text className="text-red-400 text-sm mt-3 text-center">
+            <Text className="text-red-500 text-sm mt-3 text-center">
               {error}
             </Text>
           )}
@@ -218,9 +214,9 @@ export default function UserSearchModal({
         )}
 
         {creating && (
-          <View className="absolute inset-0 bg-slate-950/80 items-center justify-center">
-            <ActivityIndicator size="large" color="#3b82f6" />
-            <Text className="text-white mt-4">Starting conversation...</Text>
+          <View className="absolute inset-0 bg-white/90 items-center justify-center">
+            <ActivityIndicator size="large" color={THEME.accent} />
+            <Text className="text-gray-700 mt-4">Starting conversation...</Text>
           </View>
         )}
       </SafeAreaView>

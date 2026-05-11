@@ -30,6 +30,15 @@ export enum MessageType {
 
   // Text Messages
   MESSAGE = "message",
+
+  // Calls (WebRTC signaling)
+  CALL_INVITE = "call_invite",
+  CALL_ACCEPT = "call_accept",
+  CALL_REJECT = "call_reject",
+  CALL_END = "call_end",
+  WEBRTC_OFFER = "webrtc_offer",
+  WEBRTC_ANSWER = "webrtc_answer",
+  WEBRTC_ICE_CANDIDATE = "webrtc_ice_candidate",
 }
 
 // Base WebSocket message structure

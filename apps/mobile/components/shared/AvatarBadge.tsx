@@ -12,7 +12,7 @@ interface AvatarBadgeProps {
   memberCount?: number;
   iconName?: string;
   iconSize?: number;
-  size?: "sm" | "md";
+  size?: "sm" | "md" | "lg";
 }
 
 export function AvatarBadge({
@@ -24,15 +24,17 @@ export function AvatarBadge({
   memberCount,
   iconName,
   iconSize = 26,
-  size = "sm",
+  size = "md",
 }: AvatarBadgeProps) {
-  const dim = size === "sm" ? "w-14 h-14" : "w-12 h-12";
-  const textSize = size === "sm" ? "text-lg" : "text-base";
+  const dim =
+    size === "sm" ? "w-10 h-10" : size === "lg" ? "w-14 h-14" : "w-12 h-12";
+  const textSize =
+    size === "sm" ? "text-sm" : size === "lg" ? "text-lg" : "text-base";
 
   return (
     <View className="relative">
       <View
-        className={`${dim} ${colorClass} rounded-2xl items-center justify-center shadow-lg`}
+        className={`${dim} ${colorClass} relative rounded-full items-center justify-center shadow-lg`}
       >
         {iconName ? (
           <Ionicons name={iconName as any} size={iconSize} color="white" />
@@ -42,7 +44,22 @@ export function AvatarBadge({
       </View>
 
       {!!unreadCount && unreadCount > 0 && (
-        <View className="absolute -top-1 -right-1 bg-red-500 rounded-full min-w-[20px] h-5 items-center justify-center px-1.5 border-2 border-slate-900">
+        <View
+          style={{
+            position: "absolute",
+            top: -2,
+            right: -2,
+            backgroundColor: "#ef4444",
+            borderRadius: 20,
+            minWidth: 20,
+            height: 20,
+            paddingHorizontal: 5,
+            alignItems: "center",
+            justifyContent: "center",
+            borderWidth: 2,
+            borderColor: "#0b1220",
+          }}
+        >
           <Text className="text-white text-xs font-bold">
             {formatUnreadCount(unreadCount)}
           </Text>
@@ -50,11 +67,11 @@ export function AvatarBadge({
       )}
 
       {isActive && (
-        <View className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-emerald-400 rounded-full border-2 border-slate-900" />
+        <View className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-emerald-400 rounded-full border-2 border-[#0b1220]" />
       )}
 
       {isPinned && (
-        <View className="absolute -top-1 -left-1 w-5 h-5 bg-blue-500 rounded-full items-center justify-center">
+        <View className="absolute -top-1 -left-1 w-5 h-5 bg-blue-500 rounded-full items-center justify-center border border-[#0b1220]">
           <Ionicons name="pin" size={12} color="white" />
         </View>
       )}

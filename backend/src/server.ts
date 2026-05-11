@@ -27,7 +27,7 @@ async function start() {
           "http://localhost:8081",
           "http://192.168.1.10:8081",
           "exp://192.168.1.10:8081",
-          "https://talkie-native-ptqm.vercel.app/",
+          "https://talkie-native-ptqm.vercel.app",
         ];
 
         if (
@@ -40,7 +40,7 @@ async function start() {
         }
       },
       credentials: true,
-      methods: ["GET", "POST", "PUT", "DELETE"],
+      methods: [""],
     });
 
     await fastify.register(databasePlugin);
@@ -50,7 +50,6 @@ async function start() {
 
     fastify.get("/health", async (request, reply) => {
       try {
-        await fastify.db.query("SELECT 1");
         return {
           status: "healthy",
           database: "connected",
@@ -90,8 +89,8 @@ async function start() {
 
     await fastify.listen({ port, host: "0.0.0.0" });
 
-    console.log(`✅ Server running on http://0.0.0.0:${port}`);
-    console.log(`✅ WebSocket available at ws://0.0.0.0:${port}/ws`);
+    console.log(` Server running on http://0.0.0.0:${port}`);
+    console.log(` WebSocket available at ws://0.0.0.0:${port}/ws`);
   } catch (error) {
     fastify.log.error(error);
     process.exit(1);

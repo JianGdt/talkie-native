@@ -3,10 +3,14 @@ import { Platform } from "react-native";
 import { MessageType, WebSocketMessage } from "@/@types/talkie";
 import { supabase } from "@/lib/supabase/client";
 import { WebSocketStore } from "@/@types/websocket";
-
+import {
+  getReconnectDelay,
+  MAX_RECONNECT_ATTEMPTS,
+  NO_RECONNECT_CODES,
+} from "@/constant/chats";
 const getWebSocketURL = (): string => {
-  const wsUrl = process.env.EXPO_PUBLIC_WS_URL ?? "ws://localhost:3001/ws";
-  const wsHost = process.env.EXPO_PUBLIC_WS_HOST ?? "localhost:3001";
+  const wsUrl = "ws://localhost:3001/ws";
+  const wsHost = "localhost:3001";
 
   return Platform.OS === "web" ? wsUrl : `ws://${wsHost}/ws`;
 };
@@ -17,9 +21,10 @@ const getUsernameFromSession = async (userId: string): Promise<string> => {
       .select("username")
       .eq("user_id", userId)
       .maybeSingle();
-
     if (data?.username) return data.username;
-  } catch (_) {}
+  } catch (error) {
+    console.log("error ", error);
+  }
 
   const {
     data: { session },
@@ -32,11 +37,7 @@ const getUsernameFromSession = async (userId: string): Promise<string> => {
   );
 };
 
-let reconnectAttempts = 0;
-const MAX_RECONNECT_ATTEMPTS = 5;
-const getReconnectDelay = () => Math.min(1000 * 2 ** reconnectAttempts, 30000);
-
-const NO_RECONNECT_CODES = new Set([1000, 1001, 1008]);
+export let reconnectAttempts = 0;
 
 export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
   ws: null,
@@ -52,6 +53,11 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
   onChannelLeft: undefined,
   onPresenceUpdate: undefined,
   conversations: [],
+
+  typingUsers: {},
+
+  activeCall: null,
+  setActiveCall: (call) => set({ activeCall: call }),
 
   setConversations: (conversations) => set({ conversations }),
 
@@ -88,6 +94,20 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
           : conv,
       ),
     }));
+  },
+
+  setTypingUser: (conversationId, userId, isTyping) => {
+    set((state) => {
+      const current = new Set(state.typingUsers[conversationId] ?? []);
+      isTyping ? current.add(userId) : current.delete(userId);
+      return {
+        typingUsers: { ...state.typingUsers, [conversationId]: current },
+      };
+    });
+  },
+
+  isUserTyping: (conversationId, userId) => {
+    return get().typingUsers[conversationId]?.has(userId) ?? false;
   },
 
   initializeWebSocket: async () => {
@@ -206,6 +226,92 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
               get().onPresenceUpdate?.(presenceUserId, status);
               break;
             }
+            case MessageType.TYPING: {
+              const {
+                conversationId,
+                userId: typingUserId,
+                isTyping,
+              } = data.payload;
+              if (!conversationId || !typingUserId) return;
+              get().setTypingUser(conversationId, typingUserId, isTyping);
+              break;
+            }
+
+            // ─────────────────────────────────────────────
+            // Calls (WebRTC signaling)
+            // ─────────────────────────────────────────────
+            case MessageType.CALL_INVITE: {
+              const { callId, fromUserId, conversationId, name } =
+                (data.payload as any) ?? {};
+              if (!callId || !fromUserId) return;
+              set({
+                activeCall: {
+                  callId,
+                  otherUserId: fromUserId,
+                  conversationId,
+                  otherUserName: name,
+                  isIncoming: true,
+                  status: "ringing",
+                },
+              });
+              break;
+            }
+            case MessageType.CALL_ACCEPT: {
+              const { callId } = (data.payload as any) ?? {};
+              if (!callId) return;
+              set((state) => {
+                const current = state.activeCall;
+                if (!current || current.callId !== callId) return {};
+                return {
+                  activeCall: { ...current, status: "connecting" },
+                };
+              });
+              break;
+            }
+            case MessageType.CALL_REJECT: {
+              const { callId } = (data.payload as any) ?? {};
+              if (!callId) return;
+              set((state) => {
+                const current = state.activeCall;
+                if (!current || current.callId !== callId) return {};
+                return { activeCall: { ...current, status: "rejected" } };
+              });
+              break;
+            }
+            case MessageType.CALL_END: {
+              const { callId } = (data.payload as any) ?? {};
+              if (!callId) return;
+              set((state) => {
+                const current = state.activeCall;
+                if (!current || current.callId !== callId) return {};
+                return { activeCall: { ...current, status: "ended" } };
+              });
+              break;
+            }
+            case MessageType.WEBRTC_OFFER: {
+              const { callId, offer, fromUserId } = (data.payload as any) ?? {};
+              if (!callId || !offer || !fromUserId) return;
+              set((state) => {
+                const existing = state.activeCall;
+                if (existing && existing.callId === callId) {
+                  return { activeCall: { ...existing, offer } };
+                }
+                return {
+                  activeCall: {
+                    callId,
+                    otherUserId: fromUserId,
+                    isIncoming: true,
+                    status: "connecting",
+                    offer,
+                  },
+                };
+              });
+              break;
+            }
+            case MessageType.WEBRTC_ANSWER:
+            case MessageType.WEBRTC_ICE_CANDIDATE:
+              // handled in-call screen via store ws messages (kept in `messages`)
+              break;
           }
         } catch (err) {
           console.error("❌ Failed to parse WebSocket message:", err);
@@ -274,6 +380,81 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
     ws.send(payload);
   },
 
+  sendCallInvite: ({ toUserId, callId, conversationId, name }) => {
+    get().sendMessage({
+      type: MessageType.CALL_INVITE,
+      payload: { toUserId, callId, conversationId, name },
+      timestamp: Date.now(),
+    });
+    set({
+      activeCall: {
+        callId,
+        otherUserId: toUserId,
+        conversationId,
+        otherUserName: name,
+        isIncoming: false,
+        status: "ringing",
+      },
+    });
+  },
+  sendCallAccept: ({ toUserId, callId }) => {
+    get().sendMessage({
+      type: MessageType.CALL_ACCEPT,
+      payload: { toUserId, callId },
+      timestamp: Date.now(),
+    });
+    set((state) => {
+      const current = state.activeCall;
+      if (!current || current.callId !== callId) return {};
+      return { activeCall: { ...current, status: "connecting" } };
+    });
+  },
+  sendCallReject: ({ toUserId, callId }) => {
+    get().sendMessage({
+      type: MessageType.CALL_REJECT,
+      payload: { toUserId, callId },
+      timestamp: Date.now(),
+    });
+    set((state) => {
+      const current = state.activeCall;
+      if (!current || current.callId !== callId) return {};
+      return { activeCall: { ...current, status: "rejected" } };
+    });
+  },
+  sendCallEnd: ({ toUserId, callId }) => {
+    get().sendMessage({
+      type: MessageType.CALL_END,
+      payload: { toUserId, callId },
+      timestamp: Date.now(),
+    });
+    set((state) => {
+      const current = state.activeCall;
+      if (!current || current.callId !== callId) return {};
+      return { activeCall: { ...current, status: "ended" } };
+    });
+  },
+  sendWebRTCOffer: ({ toUserId, callId, offer }) => {
+    get().sendMessage({
+      type: MessageType.WEBRTC_OFFER,
+      payload: { toUserId, callId, offer },
+      timestamp: Date.now(),
+    });
+  },
+  sendWebRTCAnswer: ({ toUserId, callId, answer }) => {
+    get().sendMessage({
+      type: MessageType.WEBRTC_ANSWER,
+      payload: { toUserId, callId, answer },
+      timestamp: Date.now(),
+    });
+  },
+  sendWebRTCIceCandidate: ({ toUserId, callId, candidate }) => {
+    get().sendMessage({
+      type: MessageType.WEBRTC_ICE_CANDIDATE,
+      payload: { toUserId, callId, candidate },
+      timestamp: Date.now(),
+    });
+  },
+
   isUserOnline: (userId) => get().onlineUsers.has(userId),
   getOnlineUsers: () => Array.from(get().onlineUsers),
 
@@ -299,7 +480,7 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
       conversations: [],
       isConnected: false,
       isAuthenticated: false,
-      isInitializing: false, // ✅
+      isInitializing: false,
       userId: "",
       username: "",
       connectionError: null,
@@ -307,6 +488,7 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
       onChannelJoined: undefined,
       onChannelLeft: undefined,
       onPresenceUpdate: undefined,
+      activeCall: null,
     });
   },
 }));

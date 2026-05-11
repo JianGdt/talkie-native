@@ -1,7 +1,7 @@
-import { AvatarBadge } from "@/components/shared/AvatarBadge";
 import { SettingItem } from "@/components/shared/SettingItems";
 import { useAuth } from "@/hooks/useAuth";
 import { useSettingsStore } from "@/store/useSettingStore";
+import { THEME } from "@/constant/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -54,7 +54,7 @@ export default function SettingsScreen() {
       <Switch
         value={value}
         onValueChange={onChange}
-        trackColor={{ false: "#334155", true: "#3b82f6" }}
+        trackColor={{ false: "#e5e7eb", true: THEME.accent }}
         thumbColor="white"
       />
     ),
@@ -62,29 +62,48 @@ export default function SettingsScreen() {
   });
 
   return (
-    <View className="flex-1 bg-slate-950">
-      <View className="bg-slate-900 px-6 pt-14 pb-6 border-b border-slate-800">
-        <Text className="text-white text-3xl font-bold">Settings</Text>
+    <View className="flex-1 bg-white">
+      <View className="bg-white px-6 pt-14 pb-6 border-b border-gray-100">
+        <Text className="text-gray-900 text-3xl font-bold">Settings</Text>
       </View>
 
-      <ScrollView className="flex-1" contentContainerClassName="px-6 py-6">
-        <View className="from-blue-500 to-purple-600 rounded-3xl p-6 mb-6 border border-blue-400/20">
+      <ScrollView
+        className="flex-1 bg-gray-50"
+        contentContainerClassName="px-6 py-6"
+      >
+        <View
+          className="rounded-3xl p-6 mb-6 border border-gray-100"
+          style={{ backgroundColor: THEME.accentSoft }}
+        >
           <View className="flex-row items-center mb-4">
-            <View className="flex-1 ml-4">
-              <Text className="text-white text-2xl font-bold">
+            <View
+              className="w-14 h-14 rounded-full items-center justify-center mr-4"
+              style={{ backgroundColor: "white" }}
+            >
+              <Text className="text-emerald-700 text-xl font-bold">
+                {(user?.name ?? user?.username ?? "?").slice(0, 1).toUpperCase()}
+              </Text>
+            </View>
+            <View className="flex-1">
+              <Text className="text-gray-900 text-xl font-bold">
                 {user?.name}
               </Text>
-              <Text className="text-blue-100 text-sm mt-1">{user?.email}</Text>
+              <Text className="text-gray-600 text-sm mt-1">{user?.email}</Text>
             </View>
           </View>
-          <TouchableOpacity className="bg-white/20 backdrop-blur rounded-xl py-3 px-4 flex-row items-center justify-center border border-white/30">
-            <Ionicons name="create-outline" size={20} color="white" />
-            <Text className="text-white font-semibold ml-2">Edit Profile</Text>
+          <TouchableOpacity className="bg-white rounded-xl py-3 px-4 flex-row items-center justify-center border border-gray-200">
+            <Ionicons name="create-outline" size={20} color={THEME.accent} />
+            <Text
+              className="font-semibold ml-2"
+              style={{ color: THEME.accent }}
+            >
+              Edit Profile
+            </Text>
           </TouchableOpacity>
         </View>
 
         <View className="mb-6">
-          <Text className="text-slate-500 text-xs font-semibold uppercase mb-3 ml-1">
+          <Text className="text-gray-500 text-xs font-semibold uppercase mb-3 ml-1">
             Account
           </Text>
           <SettingItem
@@ -107,7 +126,7 @@ export default function SettingsScreen() {
         </View>
 
         <View className="mb-6">
-          <Text className="text-slate-500 text-xs font-semibold uppercase mb-3 ml-1">
+          <Text className="text-gray-500 text-xs font-semibold uppercase mb-3 ml-1">
             Notifications
           </Text>
           <SettingItem
@@ -131,7 +150,7 @@ export default function SettingsScreen() {
         </View>
 
         <View className="mb-6">
-          <Text className="text-slate-500 text-xs font-semibold uppercase mb-3 ml-1">
+          <Text className="text-gray-500 text-xs font-semibold uppercase mb-3 ml-1">
             App Settings
           </Text>
           <SettingItem
@@ -149,7 +168,7 @@ export default function SettingsScreen() {
           <SettingItem
             icon="color-palette-outline"
             title="Theme"
-            subtitle="Dark mode"
+            subtitle="Light"
             onPress={() => {}}
           />
           <SettingItem
@@ -161,7 +180,7 @@ export default function SettingsScreen() {
         </View>
 
         <View className="mb-6">
-          <Text className="text-slate-500 text-xs font-semibold uppercase mb-3 ml-1">
+          <Text className="text-gray-500 text-xs font-semibold uppercase mb-3 ml-1">
             Support
           </Text>
           <SettingItem
@@ -187,12 +206,9 @@ export default function SettingsScreen() {
           />
         </View>
 
-        {/* Sign Out */}
         <TouchableOpacity
-          className={`py-4 rounded-xl border-2 ${
-            isSigningOut
-              ? "bg-red-600 border-red-600 opacity-50"
-              : "bg-transparent border-red-600 active:bg-red-600/10"
+          className={`py-4 rounded-xl border-2 border-red-500 ${
+            isSigningOut ? "opacity-50" : "active:bg-red-50"
           }`}
           onPress={handleSignOut}
           disabled={isSigningOut}

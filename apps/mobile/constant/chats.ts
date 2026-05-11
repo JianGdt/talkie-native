@@ -1,3 +1,5 @@
+import { reconnectAttempts } from "@/store/useWebSocketStore";
+
 export type MessageFilterType = "all" | "direct" | "groups";
 export type ChannelCategoryType = "all" | "public" | "private" | "team";
 export type ConversationType = "direct" | "group" | "channel";
@@ -46,3 +48,9 @@ export const CHANNEL_COLORS = [
 export const MAX_UNREAD_DISPLAY = 99;
 
 export const MESSAGE_MAX_LENGTH = 500;
+
+export const MAX_RECONNECT_ATTEMPTS = 5;
+export const getReconnectDelay = () =>
+  Math.min(1000 * 2 ** reconnectAttempts, 30000);
+
+export const NO_RECONNECT_CODES = new Set([1000, 1001, 1008]);

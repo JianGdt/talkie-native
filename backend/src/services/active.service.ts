@@ -77,4 +77,14 @@ export class ActiveUserService {
       console.error("Error marking stale users offline:", error);
     }
   }
+
+  async getOnlineUserIds() {
+    const result = await this.db.query(
+      `SELECT user_id
+       FROM user_presence
+       WHERE status = 'online'
+         AND last_seen >= NOW() - INTERVAL '5 minutes'`,
+    );
+    return result.rows.map((r) => r.user_id as string);
+  }
 }

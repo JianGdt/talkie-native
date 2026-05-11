@@ -12,7 +12,8 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.anonymous.mobilefe",
       "infoPlist": {
-        "NSMicrophoneUsageDescription": "Voice communication"
+        "NSMicrophoneUsageDescription": "Voice communication",
+        "NSCameraUsageDescription": "Video calling"
       }
     },
     "android": {
@@ -25,7 +26,10 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.anonymous.mobilefe",
-      "permissions": ["android.permission.RECORD_AUDIO"]
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.CAMERA"
+      ]
     },
     "web": {
       "output": "single",
@@ -47,7 +51,8 @@
         }
       ],
       "expo-secure-store",
-      "expo-font"
+      "expo-font",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,
