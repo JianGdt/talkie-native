@@ -72,8 +72,8 @@ export default function MessageScreen() {
 
     const directUserId =
       conv.type === "direct"
-        ? conv.participants.find((p) => p.id !== user?.id)?.id ??
-          conv.participants[0]?.id
+        ? (conv.participants.find((p) => p.id !== user?.id)?.id ??
+          conv.participants[0]?.id)
         : undefined;
 
     router.push({
@@ -99,6 +99,7 @@ export default function MessageScreen() {
     const time = formatRelativeTime(item.last_message?.timestamp);
     const unread = item.unread_count;
     const isUnread = unread > 0 && !item.last_message?.isRead;
+
     const otherUserId =
       item.type === "direct"
         ? item.participants.find((p) => p.id !== user?.id)?.id
@@ -124,9 +125,7 @@ export default function MessageScreen() {
         onPress={() => handleConversationPress(item)}
       >
         <AvatarBadge
-          colorClass={
-            item.type === "direct" ? "bg-emerald-500" : "bg-teal-500"
-          }
+          colorClass={item.type === "direct" ? "bg-emerald-500" : "bg-teal-500"}
           label={avatar}
           isActive={!!statusColor && statusColor === STATUS_COLORS.online}
           isPinned={item.is_pinned}
@@ -150,7 +149,11 @@ export default function MessageScreen() {
                 {name}
               </Text>
               {item.is_muted && (
-                <Ionicons name="volume-mute" size={16} color={THEME.textSubtle} />
+                <Ionicons
+                  name="volume-mute"
+                  size={16}
+                  color={THEME.textSubtle}
+                />
               )}
             </View>
             <Text
@@ -182,10 +185,7 @@ export default function MessageScreen() {
             )}
           </View>
           {item.type === "group" && item.participants.length > 0 && (
-            <Text
-              className="text-gray-400 text-[11px] mt-1"
-              numberOfLines={1}
-            >
+            <Text className="text-gray-400 text-[11px] mt-1" numberOfLines={1}>
               {item.participants.map((p) => p.name).join(", ")}
             </Text>
           )}

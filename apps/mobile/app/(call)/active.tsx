@@ -23,7 +23,6 @@ export default function ActiveCallScreen() {
   const activeCall = useWebSocketStore((s) => s.activeCall);
 
   const wsMessages = useWebSocketStore((s) => s.messages);
-
   const pcRef = useRef<any>(null);
   const [localStream, setLocalStream] = useState<any>(null);
   const [remoteStream, setRemoteStream] = useState<any>(null);
