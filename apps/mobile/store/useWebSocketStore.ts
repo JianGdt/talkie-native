@@ -8,6 +8,23 @@ import {
   MAX_RECONNECT_ATTEMPTS,
   NO_RECONNECT_CODES,
 } from "@/constant/chats";
+
+const formatPreviewContent = (content?: string) => {
+  if (!content) return "";
+
+  try {
+    const attachment = JSON.parse(content);
+    if (attachment?.url && attachment?.name) {
+      if (attachment.kind === "image") return "Photo";
+      if (attachment.kind === "video") return "Video";
+      if (attachment.kind === "pdf") return "PDF";
+      return attachment.name;
+    }
+  } catch {}
+
+  return content;
+};
+
 const getWebSocketURL = (): string => {
   const wsUrl = "ws://localhost:3001/ws";
   const wsHost = "localhost:3001";
@@ -68,7 +85,7 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
           ? {
               ...conv,
               last_message: {
-                content: message.content,
+                content: formatPreviewContent(message.content),
                 timestamp: message.timestamp,
                 sender: message.sender?.username,
                 isRead: isOwn,
@@ -84,13 +101,16 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
     set((state) => ({
       conversations: state.conversations.map((conv) =>
         conv.id === conversationId
-          ? {
-              ...conv,
-              unread_count: 0,
-              last_message: conv.last_message
-                ? { ...conv.last_message, isRead: true }
-                : conv.last_message,
-            }
+          ? conv.unread_count === 0 &&
+            (!conv.last_message || conv.last_message.isRead)
+            ? conv
+            : {
+                ...conv,
+                unread_count: 0,
+                last_message: conv.last_message
+                  ? { ...conv.last_message, isRead: true }
+                  : conv.last_message,
+              }
           : conv,
       ),
     }));
@@ -189,25 +209,44 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
               break;
 
             case MessageType.MESSAGE: {
-              const { conversationId, content, timestamp, sender } =
+              const { conversationId, channelId, content, timestamp, sender } =
                 data.payload;
-              if (!conversationId || !content || !sender?.userId) return;
+              const senderId = sender?.userId ?? data.userId;
+              const senderName = sender?.username ?? data.username;
+              if ((!conversationId && !channelId) || !content || !senderId) {
+                return;
+              }
 
               const currentUserId = get().userId;
-              const isOwn = sender.userId === currentUserId;
-              const exists = get().conversations.some(
-                (c) => c.id === conversationId,
-              );
+              const normalizedSender = {
+                userId: senderId,
+                username: senderName,
+              };
+              const isOwn = senderId === currentUserId;
+              const exists =
+                !!conversationId &&
+                get().conversations.some((c) => c.id === conversationId);
 
               if (exists) {
                 get().updateConversationLastMessage(
                   conversationId,
-                  { content, timestamp, sender },
+                  { content, timestamp, sender: normalizedSender },
                   isOwn,
                 );
               }
 
-              set((state) => ({ messages: [...state.messages, data] }));
+              set((state) => ({
+                messages: [
+                  ...state.messages,
+                  {
+                    ...data,
+                    payload: {
+                      ...data.payload,
+                      sender: normalizedSender,
+                    },
+                  },
+                ],
+              }));
               break;
             }
 
@@ -310,7 +349,7 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
             }
             case MessageType.WEBRTC_ANSWER:
             case MessageType.WEBRTC_ICE_CANDIDATE:
-              // handled in-call screen via store ws messages (kept in `messages`)
+              set((state) => ({ messages: [...state.messages, data] }));
               break;
           }
         } catch (err) {
@@ -372,7 +411,7 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
     }
 
     const payload = JSON.stringify(data);
-    if (payload.length > 10_000) {
+    if (payload.length > 100_000) {
       console.warn("⚠️ Message too large, rejected");
       return;
     }
@@ -381,9 +420,10 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
   },
 
   sendCallInvite: ({ toUserId, callId, conversationId, name }) => {
+    const callerName = get().username || name;
     get().sendMessage({
       type: MessageType.CALL_INVITE,
-      payload: { toUserId, callId, conversationId, name },
+      payload: { toUserId, callId, conversationId, name: callerName },
       timestamp: Date.now(),
     });
     set({

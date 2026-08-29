@@ -1,4 +1,7 @@
 export const API_ENDPOINTS = {
+  FORGOT_PASSWORD: "/auth/forgot-password",
+  RESET_PASSWORD: "/auth/reset-password",
+
   CONVERSATIONS: "/api/conversations",
   CONVERSATION_MESSAGES: (conversationId: string) =>
     `/api/conversations/${conversationId}/messages`,

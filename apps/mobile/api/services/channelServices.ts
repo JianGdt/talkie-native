@@ -50,6 +50,18 @@ export const channelService = {
       signal,
     }),
 
+  sendMessage: (
+    channelId: string,
+    content: string,
+    messageType: string = "text",
+    signal?: AbortSignal,
+  ) =>
+    apiClient.post<Message>(
+      API_ENDPOINTS.CHANNEL_MESSAGES(channelId),
+      { content, messageType },
+      { signal },
+    ),
+
   getMembers: (channelId: string, signal?: AbortSignal) =>
     apiClient.get<ChannelMember[]>(API_ENDPOINTS.CHANNEL_MEMBERS(channelId), {
       signal,

@@ -78,6 +78,20 @@ export function useChannels(): UseChannelsReturn {
 
   const handleJoinChannel = useCallback(
     async (channel: Channel) => {
+      if (channel.isActive) {
+        router.push({
+          pathname: "/messages/[id]",
+          params: {
+            id: channel.id,
+            type: "channel",
+            name: channel.name,
+            description: channel.description || "",
+            memberCount: channel.members?.toString() || "0",
+          },
+        });
+        return;
+      }
+
       if (!isAuthenticated) {
         Alert.alert("Error", "Please wait for authentication");
         return;

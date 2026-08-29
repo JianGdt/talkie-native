@@ -26,10 +26,13 @@ export function EmptyState({
       >
         <Ionicons name={iconName as any} size={28} color={THEME.accent} />
       </View>
-      <Text className="text-gray-900 text-lg font-semibold text-center">
+      <Text
+        className="text-lg font-semibold text-center"
+        style={{ color: THEME.text }}
+      >
         {title}
       </Text>
-      <Text className="text-gray-500 text-sm text-center px-8 mt-2">
+      <Text className="text-sm text-center px-8 mt-2" style={{ color: THEME.textMuted }}>
         {subtitle}
       </Text>
       {ctaLabel && onCtaPress && (

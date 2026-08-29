@@ -1,6 +1,7 @@
 import { Tabs } from "expo-router";
 import { AntDesign, Ionicons } from "@expo/vector-icons";
 import { useWebSocketStore } from "@/store/useWebSocketStore";
+import { THEME } from "@/constant/theme";
 
 export default function TabsLayout() {
   const totalUnread = useWebSocketStore((state) =>
@@ -15,13 +16,13 @@ export default function TabsLayout() {
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: "#ffffff",
-          borderTopColor: "#f3f4f6",
+          backgroundColor: THEME.inputBg,
+          borderTopColor: THEME.border,
           elevation: 0,
           shadowOpacity: 0,
         },
-        tabBarActiveTintColor: "#10b981",
-        tabBarInactiveTintColor: "#9ca3af",
+        tabBarActiveTintColor: THEME.accent,
+        tabBarInactiveTintColor: THEME.textSubtle,
       }}
     >
       <Tabs.Screen

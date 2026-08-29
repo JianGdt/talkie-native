@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   View,
   Text,
@@ -19,6 +19,7 @@ import { debounce } from "lodash";
 
 import { SearchBar } from "@/components/shared/SearchBar";
 import { AvatarBadge } from "@/components/shared/AvatarBadge";
+import { ProfileAvatar } from "@/components/shared/ProfileAvatar";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { THEME } from "@/constant/theme";
 
@@ -34,7 +35,12 @@ interface User {
 interface UserSearchModalProps {
   visible: boolean;
   onClose: () => void;
-  onUserSelect: (conversationId: string, userName: string, userId: string) => void;
+  onUserSelect: (
+    conversationId: string,
+    userName: string,
+    userId: string,
+    avatar?: string,
+  ) => void;
 }
 
 export default function UserSearchModal({
@@ -51,7 +57,8 @@ export default function UserSearchModal({
   const { isUserOnline } = useWebSocketStore();
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  const searchUsers = async (query: string) => {
+  const searchUsers = useMemo(
+    () => async (query: string) => {
     abortControllerRef.current?.abort();
     abortControllerRef.current = new AbortController();
     try {
@@ -63,15 +70,22 @@ export default function UserSearchModal({
       });
       setUsers(results.filter((u) => u.id !== user?.id));
     } catch (err) {
-      if (err instanceof ApiError) setError("Search failed. Please try again.");
+      if ((err as Error).name === "AbortError") return;
+      setError(
+        err instanceof ApiError
+          ? "Search failed. Please try again."
+          : "Unable to connect to user search.",
+      );
     } finally {
       setLoading(false);
     }
-  };
+  },
+    [user?.id],
+  );
 
-  const debouncedSearch = useCallback(
-    debounce((query: string) => searchUsers(query), 500),
-    [],
+  const debouncedSearch = useMemo(
+    () => debounce((query: string) => searchUsers(query), 500),
+    [searchUsers],
   );
 
   useEffect(() => {
@@ -86,7 +100,7 @@ export default function UserSearchModal({
       debouncedSearch.cancel();
       abortControllerRef.current?.abort();
     };
-  }, [searchQuery]);
+  }, [debouncedSearch, searchQuery]);
 
   useEffect(() => {
     if (!visible) {
@@ -96,14 +110,19 @@ export default function UserSearchModal({
       debouncedSearch.cancel();
       abortControllerRef.current?.abort();
     }
-  }, [visible]);
+  }, [debouncedSearch, visible]);
 
   const handleUserSelect = async (selectedUser: User) => {
     try {
       setCreating(true);
       const result = await conversationService.createDirect(selectedUser.id);
       onClose();
-      onUserSelect(result.conversationId, selectedUser.name, selectedUser.id);
+      onUserSelect(
+        result.conversationId,
+        selectedUser.name,
+        selectedUser.id,
+        selectedUser.avatar,
+      );
     } catch {
       Alert.alert("Error", "Failed to start conversation. Please try again.");
     } finally {
@@ -122,32 +141,47 @@ export default function UserSearchModal({
 
     return (
       <TouchableOpacity
-        className="flex-row items-center gap-4 p-4 border-b border-gray-100"
+        className="flex-row items-center gap-4 p-4 border-b"
+        style={{ borderBottomColor: THEME.border }}
         activeOpacity={0.7}
         onPress={() => handleUserSelect(item)}
         disabled={creating}
       >
-        <AvatarBadge
-          colorClass="bg-emerald-500"
-          label={initials}
-          isActive={online}
-          size="sm"
-        />
+        <View className="relative">
+          {item.avatar ? (
+            <ProfileAvatar value={item.avatar} fallbackLabel={initials} size={40} />
+          ) : (
+            <AvatarBadge
+              colorClass="bg-emerald-500"
+              label={initials}
+              isActive={online}
+              size="sm"
+            />
+          )}
+          {item.avatar && online ? (
+            <View
+              className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2"
+              style={{ backgroundColor: "#22c55e", borderColor: THEME.bg }}
+            />
+          ) : null}
+        </View>
 
         <View className="flex-1">
-          <Text className="text-gray-900 text-base font-semibold">
+          <Text className="text-base font-semibold" style={{ color: THEME.text }}>
             {item.name}
           </Text>
           {item.full_name && (
-            <Text className="text-gray-500 text-sm">{item.full_name}</Text>
+            <Text className="text-sm" style={{ color: THEME.textMuted }}>
+              {item.full_name}
+            </Text>
           )}
-          <Text className="text-gray-400 text-xs capitalize">
+          <Text className="text-xs capitalize" style={{ color: THEME.textSubtle }}>
             {online ? "online" : "offline"}
           </Text>
         </View>
 
         <View
-          className="w-10 h-10 rounded-xl items-center justify-center"
+          className="w-10 h-10 rounded-lg items-center justify-center"
           style={{ backgroundColor: THEME.accentSoft }}
         >
           <Ionicons name="chatbubble" size={20} color={THEME.accent} />
@@ -163,16 +197,20 @@ export default function UserSearchModal({
       transparent={false}
       onRequestClose={onClose}
     >
-      <SafeAreaView className="flex-1 bg-white">
-        <View className="bg-white px-6 pb-6 border-b border-gray-100">
+      <SafeAreaView className="flex-1" style={{ backgroundColor: THEME.bg }}>
+        <View
+          className="px-5 pb-6 border-b"
+          style={{ backgroundColor: THEME.bg, borderBottomColor: THEME.border }}
+        >
           <View className="flex-row items-center gap-4 mb-6 pt-4">
             <TouchableOpacity
-              className="w-10 h-10 bg-gray-100 rounded-xl items-center justify-center"
+              className="w-10 h-10 rounded-lg items-center justify-center"
+              style={{ backgroundColor: THEME.surface }}
               onPress={onClose}
             >
               <Ionicons name="close" size={24} color={THEME.textMuted} />
             </TouchableOpacity>
-            <Text className="text-gray-900 text-2xl font-bold tracking-tight flex-1">
+            <Text className="text-xl font-bold flex-1" style={{ color: THEME.text }}>
               New Message
             </Text>
           </View>
@@ -196,13 +234,13 @@ export default function UserSearchModal({
           <EmptyState
             iconName="search"
             title="Search for people"
-            subtitle="Type a name or username to find someone to message"
+            subtitle="Type a name, username, or email to find someone to message"
           />
         ) : users.length === 0 && !loading && !error ? (
           <EmptyState
             iconName="person-outline"
             title="No users found"
-            subtitle="Try searching with a different name"
+            subtitle="Try a different name, username, or email"
           />
         ) : (
           <FlatList
@@ -214,9 +252,14 @@ export default function UserSearchModal({
         )}
 
         {creating && (
-          <View className="absolute inset-0 bg-white/90 items-center justify-center">
+          <View
+            className="absolute inset-0 items-center justify-center"
+            style={{ backgroundColor: "rgba(37,41,61,0.92)" }}
+          >
             <ActivityIndicator size="large" color={THEME.accent} />
-            <Text className="text-gray-700 mt-4">Starting conversation...</Text>
+            <Text className="mt-4" style={{ color: THEME.textMuted }}>
+              Starting conversation...
+            </Text>
           </View>
         )}
       </SafeAreaView>

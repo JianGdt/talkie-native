@@ -12,12 +12,19 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@/hooks/useAuth";
 import { useConversations } from "@/hooks/useConversation";
-import { getUsersAvatar, getUsersName } from "@/utils/conversation";
+import {
+  formatPreviewContent,
+  getActiveGroupMemberCount,
+  getUsersAvatar,
+  getUsersName,
+  getUsersProfileImage,
+} from "@/utils/conversation";
 import type { Conversation } from "@/api/services/conversationServices";
 import { formatRelativeTime, formatUnreadCount } from "@/utils/formats";
 import { useWebSocketStore } from "@/store/useWebSocketStore";
 import UserSearchModal from "@/components/modal/UserSearch";
 import { AvatarBadge } from "@/components/shared/AvatarBadge";
+import { ProfileAvatar } from "@/components/shared/ProfileAvatar";
 import { THEME } from "@/constant/theme";
 
 type HomeFilter = "all" | "unread" | "private" | "groups";
@@ -33,6 +40,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const isUserOnline = useWebSocketStore((s) => s.isUserOnline);
+  const onlineUsers = useWebSocketStore((s) => s.onlineUsers);
   const {
     conversations,
     loading,
@@ -87,10 +95,17 @@ export default function HomeScreen() {
     conversationId: string,
     userName: string,
     otherUserId: string,
+    avatar?: string,
   ) => {
     router.push({
       pathname: "/messages/[id]",
-      params: { id: conversationId, type: "direct", name: userName, userId: otherUserId },
+      params: {
+        id: conversationId,
+        type: "direct",
+        name: userName,
+        userId: otherUserId,
+        avatar,
+      },
     });
     fetchConversations();
   };
@@ -105,6 +120,10 @@ export default function HomeScreen() {
           id: conv.channel_id ?? conv.id,
           type: "channel",
           name: getUsersName(conv),
+          avatar: getUsersProfileImage(conv),
+          activeCount: String(
+            getActiveGroupMemberCount(conv, onlineUsers, user?.id),
+          ),
         },
       });
       return;
@@ -122,6 +141,14 @@ export default function HomeScreen() {
         id: conv.id,
         type: conv.type,
         name: getUsersName(conv),
+        avatar: getUsersProfileImage(conv),
+        ...(conv.type === "group"
+          ? {
+              activeCount: String(
+                getActiveGroupMemberCount(conv, onlineUsers, user?.id),
+              ),
+            }
+          : {}),
         ...(directUserId ? { userId: directUserId } : {}),
       },
     });
@@ -130,9 +157,11 @@ export default function HomeScreen() {
   const renderConversation = ({ item }: { item: Conversation }) => {
     const name = getUsersName(item);
     const avatar = getUsersAvatar(item);
+    const profileImage = getUsersProfileImage(item);
     const time = formatRelativeTime(item.last_message?.timestamp);
     const unread = item.unread_count ?? 0;
     const isUnread = unread > 0 && !item.last_message?.isRead;
+    const activeCount = getActiveGroupMemberCount(item, onlineUsers, user?.id);
     const otherUserId =
       item.type === "direct"
         ? item.participants.find((p) => p.id !== user?.id)?.id
@@ -141,53 +170,63 @@ export default function HomeScreen() {
 
     const preview =
       item.type === "group" && item.last_message?.sender
-        ? `${item.last_message.sender}: ${item.last_message.content ?? ""}`
-        : item.last_message?.content || "No messages yet";
+        ? `${item.last_message.sender}: ${formatPreviewContent(item.last_message.content)}`
+        : formatPreviewContent(item.last_message?.content) || "No messages yet";
 
     return (
       <TouchableOpacity
-        className="flex-row items-center py-3.5 border-b border-gray-100 active:bg-gray-50"
+        className="flex-row items-center py-3.5 border-b"
+        style={{ borderBottomColor: THEME.border }}
         activeOpacity={0.7}
         onPress={() => handleConversationPress(item)}
       >
         <View className="relative">
-          <AvatarBadge
-            colorClass={
-              item.type === "direct"
-                ? "bg-emerald-500"
-                : "bg-gradient-to-br from-emerald-400 to-teal-500"
-            }
-            label={avatar}
-            isActive={!!isOnline}
-            size="lg"
-          />
+          {profileImage ? (
+            <ProfileAvatar value={profileImage} fallbackLabel={avatar} size={56} />
+          ) : (
+            <AvatarBadge
+              colorClass={
+                item.type === "direct"
+                  ? "bg-emerald-500"
+                  : "bg-gradient-to-br from-emerald-400 to-teal-500"
+              }
+              label={avatar}
+              isActive={!!isOnline}
+              size="lg"
+            />
+          )}
+          {profileImage && isOnline ? (
+            <View
+              className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2"
+              style={{ backgroundColor: "#22c55e", borderColor: THEME.bg }}
+            />
+          ) : null}
         </View>
         <View className="flex-1 ml-3.5 min-w-0">
           <View className="flex-row items-center justify-between mb-0.5">
-            <Text
-              className={`text-[16px] tracking-tight ${
-                isUnread ? "text-gray-900 font-bold" : "text-gray-900 font-semibold"
-              }`}
+              <Text
+              className={`text-[14px] ${isUnread ? "font-bold" : "font-semibold"}`}
+              style={{ color: THEME.text }}
               numberOfLines={1}
             >
               {name}
             </Text>
             <Text
-              className={`text-[12px] ml-2 ${
-                isUnread ? "text-emerald-600 font-semibold" : "text-gray-400"
-              }`}
+              className={`text-[11px] ml-2 ${isUnread ? "font-semibold" : ""}`}
+              style={{ color: isUnread ? THEME.accent : THEME.textSubtle }}
             >
               {time}
             </Text>
           </View>
           <View className="flex-row items-center justify-between">
             <Text
-              className={`flex-1 text-[14px] mr-2 ${
-                isUnread ? "text-gray-800 font-medium" : "text-gray-500"
-              }`}
+              className={`flex-1 text-[12px] mr-2 ${isUnread ? "font-medium" : ""}`}
+              style={{ color: isUnread ? THEME.textMuted : THEME.textSubtle }}
               numberOfLines={1}
             >
-              {preview}
+              {item.type === "group"
+                ? `${activeCount} active - ${preview}`
+                : preview}
             </Text>
             {isUnread ? (
               <View
@@ -209,15 +248,20 @@ export default function HomeScreen() {
 
   if (loading) {
     return (
-      <View className="flex-1 bg-white items-center justify-center">
+      <View
+        className="flex-1 items-center justify-center"
+        style={{ backgroundColor: THEME.bg }}
+      >
         <ActivityIndicator size="large" color={THEME.accent} />
-        <Text className="text-gray-500 mt-4 text-sm">Loading chats…</Text>
+        <Text className="mt-4 text-sm" style={{ color: THEME.textMuted }}>
+          Loading chats...
+        </Text>
       </View>
     );
   }
 
   return (
-    <View className="flex-1 bg-white">
+    <View className="flex-1" style={{ backgroundColor: THEME.bg }}>
       <FlatList
         data={filteredList}
         keyExtractor={(item) => item.id}
@@ -228,21 +272,23 @@ export default function HomeScreen() {
         contentContainerStyle={{ paddingBottom: 24 }}
         ListHeaderComponent={
           <>
-            <View className="pt-14 px-5 pb-2">
+            <View className="pt-12 px-5 pb-2">
               <View className="flex-row items-center justify-between">
                 <View className="flex-row items-center flex-1">
-                  <View
-                    className="w-12 h-12 rounded-full items-center justify-center mr-3"
-                    style={{ backgroundColor: THEME.accentSoft }}
-                  >
-                    <Text className="text-emerald-700 text-lg font-bold">
-                      {userInitial}
-                    </Text>
+                  <View className="mr-3">
+                    <ProfileAvatar
+                      value={user?.profileImage}
+                      fallbackLabel={userInitial}
+                      size={40}
+                    />
                   </View>
                   <View className="flex-1">
-                    <Text className="text-gray-500 text-sm">Welcome,</Text>
+                    <Text className="text-[11px]" style={{ color: THEME.textSubtle }}>
+                      Welcome,
+                    </Text>
                     <Text
-                      className="text-gray-900 text-xl font-bold tracking-tight"
+                      className="text-[15px] font-semibold"
+                      style={{ color: THEME.text }}
                       numberOfLines={1}
                     >
                       {displayName}
@@ -250,23 +296,27 @@ export default function HomeScreen() {
                   </View>
                 </View>
                 <TouchableOpacity
-                  className="w-11 h-11 rounded-full items-center justify-center bg-gray-100"
+                  className="w-10 h-10 rounded-lg items-center justify-center"
+                  style={{ backgroundColor: THEME.accent }}
                   activeOpacity={0.7}
                   onPress={() => setShowUserSearch(true)}
                 >
-                  <Ionicons name="create-outline" size={22} color="#374151" />
+                  <Ionicons name="add" size={22} color="white" />
                 </TouchableOpacity>
               </View>
 
-              <View className="flex-row items-center bg-gray-100 rounded-2xl px-4 py-3.5 mt-5">
+              <View
+                className="flex-row items-center rounded-lg px-3 py-2 mt-4 border"
+                style={{ backgroundColor: THEME.inputBg, borderColor: THEME.border }}
+              >
                 <Ionicons name="search" size={20} color="#9ca3af" />
                 <TextInput
-                  className="flex-1 ml-3 text-base text-gray-900 py-0"
-                  placeholder="Search…"
+                  className="flex-1 ml-3 text-[13px] py-0"
+                  placeholder="Search..."
                   placeholderTextColor="#9ca3af"
                   value={searchQuery}
                   onChangeText={setSearchQuery}
-                  style={{ outline: "none" } as any}
+                  style={{ outline: "none", color: THEME.text } as any}
                 />
                 {searchQuery.length > 0 ? (
                   <TouchableOpacity onPress={() => setSearchQuery("")}>
@@ -278,37 +328,56 @@ export default function HomeScreen() {
 
             {storyItems.length > 0 ? (
               <View className="mt-2 mb-1">
+                <Text
+                  className="px-5 mb-3 text-[13px] font-semibold"
+                  style={{ color: THEME.text }}
+                >
+                  Chatrooms
+                </Text>
                 <ScrollView
                   horizontal
                   showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={{ paddingHorizontal: 20, gap: 16 }}
+                  contentContainerStyle={{ paddingHorizontal: 20, gap: 10 }}
                 >
-                  {storyItems.map((conv) => {
+                  {storyItems.map((conv, index) => {
                     const name = getUsersName(conv);
-                    const avatar = getUsersAvatar(conv);
                     const otherId =
                       conv.participants.find((p) => p.id !== user?.id)?.id ??
                       conv.participants[0]?.id;
                     const online = otherId ? isUserOnline(otherId) : false;
+                    const gradients = [
+                      ["#f7ff00", "#00d1ff"],
+                      ["#0ea5e9", "#0057d9"],
+                      ["#d300ff", "#00e6b8"],
+                      ["#f97316", "#ef4444"],
+                    ];
+                    const colors = gradients[index % gradients.length];
                     return (
                       <TouchableOpacity
                         key={conv.id}
-                        className="items-center w-[64px]"
+                        className="w-[76px] h-[104px] rounded-2xl justify-between p-2 overflow-hidden"
+                        style={{ backgroundColor: colors[1] }}
                         activeOpacity={0.7}
                         onPress={() => handleConversationPress(conv)}
                       >
-                        <AvatarBadge
-                          colorClass="bg-emerald-500"
-                          label={avatar}
-                          isActive={online}
-                          size="lg"
+                        <View
+                          className="absolute inset-0"
+                          style={{ backgroundColor: colors[0], opacity: 0.86 }}
                         />
+                        <View className="h-8" />
                         <Text
-                          className="text-gray-700 text-[11px] font-medium mt-2 text-center"
-                          numberOfLines={1}
+                          className="text-white text-[10px] font-bold"
+                          numberOfLines={2}
                         >
-                          {name.split(" ")[0]}
+                          {name}
                         </Text>
+                        <View className="flex-row justify-end">
+                          <Ionicons
+                            name={online ? "heart" : "heart-outline"}
+                            size={12}
+                            color="white"
+                          />
+                        </View>
                       </TouchableOpacity>
                     );
                   })}
@@ -348,7 +417,9 @@ export default function HomeScreen() {
             </View>
 
             <View className="px-5 pt-2 pb-1">
-              <Text className="text-gray-900 text-lg font-bold">Chats</Text>
+              <Text className="text-[13px] font-semibold" style={{ color: THEME.text }}>
+                Favourites
+              </Text>
             </View>
           </>
         }
@@ -356,14 +427,14 @@ export default function HomeScreen() {
           <View className="px-5 py-16 items-center">
             <View
               className="w-16 h-16 rounded-full items-center justify-center mb-4"
-              style={{ backgroundColor: THEME.accentSoft }}
+              style={{ backgroundColor: THEME.surfaceRaised }}
             >
               <Ionicons name="chatbubbles-outline" size={28} color={THEME.accent} />
             </View>
-            <Text className="text-gray-900 font-semibold text-base">
+            <Text className="font-semibold text-base" style={{ color: THEME.text }}>
               No conversations yet
             </Text>
-            <Text className="text-gray-500 text-sm text-center mt-2 px-8">
+            <Text className="text-sm text-center mt-2 px-8" style={{ color: THEME.textMuted }}>
               {searchQuery
                 ? "Try a different search"
                 : "Tap the pencil to start a new chat"}

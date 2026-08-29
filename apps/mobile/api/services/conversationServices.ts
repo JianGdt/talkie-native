@@ -71,6 +71,18 @@ export const conversationService = {
       { signal },
     ),
 
+  sendMessage: (
+    conversationId: string,
+    content: string,
+    messageType: string = "text",
+    signal?: AbortSignal,
+  ) =>
+    apiClient.post<Message>(
+      API_ENDPOINTS.CONVERSATION_MESSAGES(conversationId),
+      { content, messageType },
+      { signal },
+    ),
+
   createGroup: (name: string, participantIds: string[], signal?: AbortSignal) =>
     apiClient.post<{
       conversationId: string;

@@ -19,19 +19,24 @@ export const SettingItem = ({
 }) => (
   <TouchableOpacity
     onPress={onPress}
-    className="bg-white rounded-2xl p-4 mb-3 flex-row items-center border border-gray-100"
+    className="rounded-xl p-4 mb-3 flex-row items-center border"
+    style={{ backgroundColor: THEME.surface, borderColor: THEME.border }}
     disabled={!onPress && !rightElement}
   >
     <View
-      className="w-10 h-10 rounded-xl items-center justify-center"
-      style={{ backgroundColor: THEME.accentSoft }}
+      className="w-10 h-10 rounded-lg items-center justify-center"
+      style={{ backgroundColor: THEME.inputBg }}
     >
       <Ionicons name={icon as any} size={20} color={THEME.accent} />
     </View>
     <View className="flex-1 ml-4">
-      <Text className="text-gray-900 font-semibold text-base">{title}</Text>
+      <Text className="font-semibold text-sm" style={{ color: THEME.text }}>
+        {title}
+      </Text>
       {subtitle && (
-        <Text className="text-gray-500 text-sm mt-1">{subtitle}</Text>
+        <Text className="text-xs mt-1" style={{ color: THEME.textMuted }}>
+          {subtitle}
+        </Text>
       )}
     </View>
     {rightElement ||

@@ -8,7 +8,13 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
-import { getUsersAvatar, getUsersName } from "@/utils/conversation";
+import {
+  formatPreviewContent,
+  getActiveGroupMemberCount,
+  getUsersAvatar,
+  getUsersName,
+  getUsersProfileImage,
+} from "@/utils/conversation";
 import UserSearchModal from "@/components/modal/UserSearch";
 import type { Conversation } from "@/api/services/conversationServices";
 import { useConversations } from "@/hooks/useConversation";
@@ -21,6 +27,7 @@ import { useWebSocketStore } from "@/store/useWebSocketStore";
 import { ScreenHeader } from "@/components/shared/ScreenHeader";
 import { SearchBar } from "@/components/shared/SearchBar";
 import { AvatarBadge } from "@/components/shared/AvatarBadge";
+import { ProfileAvatar } from "@/components/shared/ProfileAvatar";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { FilterBtn } from "@/components/shared/Filter";
 
@@ -28,6 +35,7 @@ export default function MessageScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const isUserOnline = useWebSocketStore((state) => state.isUserOnline);
+  const onlineUsers = useWebSocketStore((state) => state.onlineUsers);
   const {
     filteredConversations,
     loading,
@@ -47,10 +55,11 @@ export default function MessageScreen() {
     conversationId: string,
     userName: string,
     userId: string,
+    avatar?: string,
   ) => {
     router.push({
       pathname: "/messages/[id]",
-      params: { id: conversationId, type: "direct", name: userName, userId },
+      params: { id: conversationId, type: "direct", name: userName, userId, avatar },
     });
     fetchConversations();
   };
@@ -65,6 +74,10 @@ export default function MessageScreen() {
           id: conv.channel_id ?? conv.id,
           type: "channel",
           name: getUsersName(conv),
+          avatar: getUsersProfileImage(conv),
+          activeCount: String(
+            getActiveGroupMemberCount(conv, onlineUsers, user?.id),
+          ),
         },
       });
       return;
@@ -82,6 +95,14 @@ export default function MessageScreen() {
         id: conv.id,
         type: conv.type,
         name: getUsersName(conv),
+        avatar: getUsersProfileImage(conv),
+        ...(conv.type === "group"
+          ? {
+              activeCount: String(
+                getActiveGroupMemberCount(conv, onlineUsers, user?.id),
+              ),
+            }
+          : {}),
         ...(directUserId ? { userId: directUserId } : {}),
       },
     });
@@ -96,9 +117,11 @@ export default function MessageScreen() {
   const renderConversation = ({ item }: { item: Conversation }) => {
     const name = getUsersName(item);
     const avatar = getUsersAvatar(item);
+    const profileImage = getUsersProfileImage(item);
     const time = formatRelativeTime(item.last_message?.timestamp);
     const unread = item.unread_count;
     const isUnread = unread > 0 && !item.last_message?.isRead;
+    const activeCount = getActiveGroupMemberCount(item, onlineUsers, user?.id);
 
     const otherUserId =
       item.type === "direct"
@@ -115,35 +138,66 @@ export default function MessageScreen() {
 
     const preview =
       item.type === "group" && item.last_message?.sender
-        ? `${item.last_message.sender}: ${item.last_message.content ?? ""}`
-        : item.last_message?.content || "No messages yet";
+        ? `${item.last_message.sender}: ${formatPreviewContent(item.last_message.content)}`
+        : formatPreviewContent(item.last_message?.content) || "No messages yet";
 
     return (
       <TouchableOpacity
-        className="flex-row items-center py-3.5 border-b border-gray-100 active:bg-gray-50"
+        className="flex-row items-center py-3.5 border-b"
+        style={{ borderBottomColor: THEME.border }}
         activeOpacity={0.7}
         onPress={() => handleConversationPress(item)}
       >
-        <AvatarBadge
-          colorClass={item.type === "direct" ? "bg-emerald-500" : "bg-teal-500"}
-          label={avatar}
-          isActive={!!statusColor && statusColor === STATUS_COLORS.online}
-          isPinned={item.is_pinned}
-          memberCount={
-            item.type === "group" ? item.participants.length : undefined
-          }
-          unreadCount={isUnread ? unread : undefined}
-          size="lg"
-        />
+        <View className="relative">
+          {profileImage ? (
+            <ProfileAvatar value={profileImage} fallbackLabel={avatar} size={56} />
+          ) : (
+            <AvatarBadge
+              colorClass={item.type === "direct" ? "bg-emerald-500" : "bg-teal-500"}
+              label={avatar}
+              isActive={!!statusColor && statusColor === STATUS_COLORS.online}
+              isPinned={item.is_pinned}
+              memberCount={
+                item.type === "group" ? item.participants.length : undefined
+              }
+              unreadCount={isUnread ? unread : undefined}
+              size="lg"
+            />
+          )}
+          {profileImage && !!statusColor && statusColor === STATUS_COLORS.online ? (
+            <View
+              className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2"
+              style={{ backgroundColor: "#22c55e", borderColor: THEME.bg }}
+            />
+          ) : null}
+          {profileImage && item.is_pinned ? (
+            <View className="absolute -top-1 -left-1 w-5 h-5 bg-blue-500 rounded-full items-center justify-center border border-[#0b1220]">
+              <Ionicons name="pin" size={12} color="white" />
+            </View>
+          ) : null}
+          {profileImage && isUnread ? (
+            <View
+              className="absolute -top-1 -right-1 rounded-full items-center justify-center border"
+              style={{
+                minWidth: 20,
+                height: 20,
+                paddingHorizontal: 5,
+                backgroundColor: "#ef4444",
+                borderColor: THEME.bg,
+              }}
+            >
+              <Text className="text-white text-xs font-bold">
+                {formatUnreadCount(unread)}
+              </Text>
+            </View>
+          ) : null}
+        </View>
         <View className="flex-1 ml-3.5 min-w-0">
           <View className="flex-row items-center justify-between mb-0.5">
             <View className="flex-row items-center gap-2 flex-1 pr-2">
               <Text
-                className={`text-[16px] tracking-tight ${
-                  isUnread
-                    ? "text-gray-900 font-bold"
-                    : "text-gray-900 font-semibold"
-                }`}
+                className={`text-[14px] ${isUnread ? "font-bold" : "font-semibold"}`}
+                style={{ color: THEME.text }}
                 numberOfLines={1}
               >
                 {name}
@@ -152,23 +206,21 @@ export default function MessageScreen() {
                 <Ionicons
                   name="volume-mute"
                   size={16}
-                  color={THEME.textSubtle}
+                color={THEME.textSubtle}
                 />
               )}
             </View>
             <Text
-              className={`text-[12px] ${
-                isUnread ? "text-emerald-600 font-semibold" : "text-gray-400"
-              }`}
+              className={`text-[11px] ${isUnread ? "font-semibold" : ""}`}
+              style={{ color: isUnread ? THEME.accent : THEME.textSubtle }}
             >
               {time}
             </Text>
           </View>
           <View className="flex-row items-center justify-between">
             <Text
-              className={`flex-1 text-[14px] mr-2 ${
-                isUnread ? "text-gray-800 font-medium" : "text-gray-500"
-              }`}
+              className={`flex-1 text-[12px] mr-2 ${isUnread ? "font-medium" : ""}`}
+              style={{ color: isUnread ? THEME.textMuted : THEME.textSubtle }}
               numberOfLines={1}
             >
               {preview}
@@ -185,8 +237,12 @@ export default function MessageScreen() {
             )}
           </View>
           {item.type === "group" && item.participants.length > 0 && (
-            <Text className="text-gray-400 text-[11px] mt-1" numberOfLines={1}>
-              {item.participants.map((p) => p.name).join(", ")}
+            <Text
+              className="text-[11px] mt-1"
+              style={{ color: THEME.textSubtle }}
+              numberOfLines={1}
+            >
+              {activeCount} active - {item.participants.length} members
             </Text>
           )}
         </View>
@@ -196,16 +252,21 @@ export default function MessageScreen() {
 
   if (loading) {
     return (
-      <View className="flex-1 bg-white items-center justify-center">
+      <View
+        className="flex-1 items-center justify-center"
+        style={{ backgroundColor: THEME.bg }}
+      >
         <ActivityIndicator size="large" color={THEME.accent} />
-        <Text className="text-gray-500 mt-4">Loading conversations...</Text>
+        <Text className="mt-4" style={{ color: THEME.textMuted }}>
+          Loading conversations...
+        </Text>
       </View>
     );
   }
 
   return (
-    <View className="flex-1 bg-white">
-      <View className="bg-white px-6 pt-14 pb-4 border-b border-gray-100">
+    <View className="flex-1" style={{ backgroundColor: THEME.bg }}>
+      <View className="px-5 pt-12 pb-4">
         <ScreenHeader
           title="Messages"
           subtitle={`${filteredConversations.length} conversations`}
@@ -228,7 +289,7 @@ export default function MessageScreen() {
         data={filteredConversations}
         renderItem={renderConversation}
         keyExtractor={(item) => item.id}
-        contentContainerClassName="px-6 py-2"
+        contentContainerClassName="px-5 py-2"
         showsVerticalScrollIndicator={false}
         refreshing={refreshing}
         onRefresh={handleRefresh}

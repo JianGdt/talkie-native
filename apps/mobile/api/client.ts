@@ -43,8 +43,9 @@ const request = async <T>(
   method: string,
   endpoint: string,
   options?: RequestOptions & { data?: unknown },
+  requireAuth: boolean = true,
 ): Promise<T> => {
-  const authHeaders = await getAuthHeaders();
+  const authHeaders = requireAuth ? await getAuthHeaders() : {};
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -88,4 +89,10 @@ export const apiClient = {
 
   delete: <T = any>(endpoint: string, options?: RequestOptions) =>
     request<T>("DELETE", endpoint, options),
+
+  publicPost: <T = any>(
+    endpoint: string,
+    data: unknown,
+    options?: RequestOptions,
+  ) => request<T>("POST", endpoint, { ...options, data }, false),
 };

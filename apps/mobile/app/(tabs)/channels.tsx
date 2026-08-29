@@ -42,13 +42,17 @@ export default function ChannelsScreen() {
       onPress={() => handleJoinChannel(item)}
     >
       <View
-        className={`bg-white rounded-3xl overflow-hidden border ${
-          item.isActive ? "border-emerald-300" : "border-gray-100"
-        }`}
+        className="rounded-2xl overflow-hidden border"
         style={
           item.isActive
-            ? { shadowColor: THEME.accent, shadowOpacity: 0.12, shadowRadius: 8 }
-            : undefined
+            ? {
+                backgroundColor: THEME.surface,
+                borderColor: THEME.accent,
+                shadowColor: THEME.accent,
+                shadowOpacity: 0.12,
+                shadowRadius: 8,
+              }
+            : { backgroundColor: THEME.surface, borderColor: THEME.border }
         }
       >
         {item.isActive && (
@@ -68,7 +72,10 @@ export default function ChannelsScreen() {
 
               <View className="flex-1 pt-0.5">
                 <View className="flex-row items-center gap-2 mb-1.5">
-                  <Text className="text-gray-900 text-lg font-bold tracking-tight">
+                  <Text
+                    className="text-base font-bold"
+                    style={{ color: THEME.text }}
+                  >
                     {item.name}
                   </Text>
                   {item.isActive && (
@@ -88,11 +95,11 @@ export default function ChannelsScreen() {
                     </View>
                   )}
                 </View>
-                <Text className="text-gray-500 text-sm leading-5 mb-2">
+                <Text className="text-sm leading-5 mb-2" style={{ color: THEME.textMuted }}>
                   {item.description}
                 </Text>
                 {item.lastActivity && (
-                  <Text className="text-gray-400 text-xs">
+                  <Text className="text-xs" style={{ color: THEME.textSubtle }}>
                     Last activity: {item.lastActivity}
                   </Text>
                 )}
@@ -100,28 +107,41 @@ export default function ChannelsScreen() {
             </View>
           </View>
 
-          <View className="flex-row items-center justify-between pt-4 border-t border-gray-100">
+          <View
+            className="flex-row items-center justify-between pt-4 border-t"
+            style={{ borderTopColor: THEME.border }}
+          >
             <View className="flex-row items-center gap-5">
               <View className="flex-row items-center gap-2">
-                <View className="w-8 h-8 bg-gray-100 rounded-lg items-center justify-center">
+                <View
+                  className="w-8 h-8 rounded-lg items-center justify-center"
+                  style={{ backgroundColor: THEME.inputBg }}
+                >
                   <Ionicons name="people" size={16} color={THEME.textMuted} />
                 </View>
                 <View>
-                  <Text className="text-gray-400 text-xs">Members</Text>
-                  <Text className="text-gray-900 text-sm font-semibold">
+                  <Text className="text-xs" style={{ color: THEME.textSubtle }}>
+                    Members
+                  </Text>
+                  <Text className="text-sm font-semibold" style={{ color: THEME.text }}>
                     {item.members}
                   </Text>
                 </View>
               </View>
 
               <View className="flex-row items-center gap-2">
-                <View className="w-8 h-8 bg-gray-100 rounded-lg items-center justify-center">
+                <View
+                  className="w-8 h-8 rounded-lg items-center justify-center"
+                  style={{ backgroundColor: THEME.inputBg }}
+                >
                   <View
                     className={`w-2.5 h-2.5 rounded-full ${item.members > 5 ? "bg-emerald-500" : "bg-gray-300"}`}
                   />
                 </View>
                 <View>
-                  <Text className="text-gray-400 text-xs">Status</Text>
+                  <Text className="text-xs" style={{ color: THEME.textSubtle }}>
+                    Status
+                  </Text>
                   <Text
                     className={`text-sm font-semibold ${item.members > 5 ? "text-emerald-600" : "text-gray-400"}`}
                   >
@@ -132,18 +152,20 @@ export default function ChannelsScreen() {
             </View>
 
             <TouchableOpacity
-              className={`px-6 py-3 rounded-2xl ${
-                item.isActive ? "bg-gray-100 border border-gray-200" : ""
-              }`}
+              className="px-6 py-3 rounded-xl border"
               style={
-                !item.isActive ? { backgroundColor: THEME.accent } : undefined
+                item.isActive
+                  ? { backgroundColor: THEME.inputBg, borderColor: THEME.border }
+                  : { backgroundColor: THEME.accent, borderColor: THEME.accent }
               }
               activeOpacity={0.8}
               onPress={(e) => {
                 e.stopPropagation();
-                item.isActive
-                  ? handleLeaveChannel(item)
-                  : handleJoinChannel(item);
+                if (item.isActive) {
+                  handleLeaveChannel(item);
+                } else {
+                  handleJoinChannel(item);
+                }
               }}
             >
               <View className="flex-row items-center gap-2">
@@ -167,25 +189,30 @@ export default function ChannelsScreen() {
 
   if (loading) {
     return (
-      <View className="flex-1 bg-white items-center justify-center">
+      <View
+        className="flex-1 items-center justify-center"
+        style={{ backgroundColor: THEME.bg }}
+      >
         <ActivityIndicator size="large" color={THEME.accent} />
-        <Text className="text-gray-500 mt-4">Loading channels...</Text>
+        <Text className="mt-4" style={{ color: THEME.textMuted }}>
+          Loading channels...
+        </Text>
       </View>
     );
   }
 
   return (
-    <View className="flex-1 bg-white">
-      <View className="bg-white px-6 pt-14 pb-4 border-b border-gray-100">
+    <View className="flex-1" style={{ backgroundColor: THEME.bg }}>
+      <View className="px-5 pt-12 pb-4">
         <ScreenHeader
           title="Channels"
-          subtitle={`${filteredChannels.length} available`}
+          subtitle={`${filteredChannels.length} joined`}
           onAddPress={() => setShowCreateModal(true)}
         />
         <SearchBar
           value={searchQuery}
           onChangeText={setSearchQuery}
-          placeholder="Search channels..."
+          placeholder="Search your groups..."
         />
       </View>
 
@@ -201,20 +228,20 @@ export default function ChannelsScreen() {
         data={filteredChannels}
         renderItem={renderChannel}
         keyExtractor={(item) => item.id}
-        contentContainerClassName="px-6 py-5"
+        contentContainerClassName="px-5 py-5"
         showsVerticalScrollIndicator={false}
         refreshing={refreshing}
         onRefresh={handleRefresh}
         ListEmptyComponent={
           <EmptyState
             iconName="add-circle-outline"
-            title="No channels yet"
+            title="No groups yet"
             subtitle={
               searchQuery
                 ? "Try adjusting your search"
-                : "Create the first channel to get started"
+                : "Groups will appear here after someone adds you"
             }
-            ctaLabel={!searchQuery ? "Create Channel" : undefined}
+            ctaLabel={!searchQuery ? "Create Group" : undefined}
             onCtaPress={
               !searchQuery ? () => setShowCreateModal(true) : undefined
             }

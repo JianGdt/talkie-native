@@ -19,7 +19,11 @@ interface AuthContextType {
     email: string,
     password: string,
     fullName: string,
+    avatarBlob?: Blob,
+    avatarUrl?: string,
   ) => Promise<void>;
+  updateProfileImage: (avatarBlob: Blob) => Promise<void>;
+  updateProfileAvatarUrl: (avatarUrl: string) => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(
@@ -102,6 +106,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     email: string,
     password: string,
     fullName: string,
+    avatarBlob?: Blob,
+    selectedAvatarUrl?: string,
   ) => {
     try {
       setLoading(true);
@@ -115,7 +121,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (error) throw error;
 
       if (data.user) {
-        const profile = await createUserProfile(data.user, fullName);
+        let avatarUrl = selectedAvatarUrl;
+        if (avatarBlob) {
+          try {
+            avatarUrl = await uploadAvatar(data.user.id, avatarBlob);
+          } catch (avatarError) {
+            console.warn("Avatar upload failed during signup:", avatarError);
+          }
+        }
+        const profile = await createUserProfile(data.user, fullName, avatarUrl);
         setUser(profile);
       }
     } catch (error) {
@@ -129,6 +143,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const createUserProfile = async (
     authUser: any,
     fullNameOverride?: string,
+    avatarUrl?: string,
   ): Promise<User> => {
     const fullName =
       fullNameOverride ||
@@ -147,7 +162,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user_id: authUser.id,
         username,
         full_name: fullName,
-        avatar_url: null,
+        avatar_url: avatarUrl ?? null,
       })
       .select()
       .single();
@@ -161,6 +176,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email: authUser.email || "",
       profileImage: data.avatar_url,
     };
+  };
+
+  const uploadAvatar = async (userId: string, avatarBlob: Blob) => {
+    const path = `${userId}/${Date.now()}-selfie.jpg`;
+    const { error } = await supabase.storage
+      .from("avatars")
+      .upload(path, avatarBlob, {
+        contentType: "image/jpeg",
+        upsert: true,
+      });
+    if (error) throw error;
+
+    const {
+      data: { publicUrl },
+    } = supabase.storage.from("avatars").getPublicUrl(path);
+    return publicUrl;
+  };
+
+  const updateProfileImage = async (avatarBlob: Blob) => {
+    if (!user) throw new Error("Not signed in");
+
+    const avatarUrl = await uploadAvatar(user.id, avatarBlob);
+    const { error } = await supabase
+      .from("user_profiles")
+      .update({ avatar_url: avatarUrl, updated_at: new Date().toISOString() })
+      .eq("user_id", user.id);
+
+    if (error) throw error;
+    setUser({ ...user, profileImage: avatarUrl });
+  };
+
+  const updateProfileAvatarUrl = async (avatarUrl: string) => {
+    if (!user) throw new Error("Not signed in");
+
+    const { error } = await supabase
+      .from("user_profiles")
+      .update({ avatar_url: avatarUrl, updated_at: new Date().toISOString() })
+      .eq("user_id", user.id);
+
+    if (error) throw error;
+    setUser({ ...user, profileImage: avatarUrl });
   };
 
   const fetchUserProfile = async (userId: string): Promise<User | null> => {
@@ -197,6 +253,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signOut,
         signInWithEmail,
         signUpWithEmail,
+        updateProfileImage,
+        updateProfileAvatarUrl,
       }}
     >
       {children}

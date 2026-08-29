@@ -24,16 +24,20 @@ export function SearchBar({
   autoFocus = false,
 }: SearchBarProps) {
   return (
-    <View className="bg-gray-100 rounded-2xl flex-row items-center px-3 py-3 border border-gray-100">
+    <View
+      className="rounded-lg flex-row items-center px-3 py-2 border"
+      style={{ backgroundColor: THEME.inputBg, borderColor: THEME.border }}
+    >
       <Ionicons name="search" size={20} color={THEME.textSubtle} />
       <TextInput
+        className="flex-1 text-[13px]"
         style={{
           paddingVertical: 0,
           outline: "none",
           borderBottomWidth: 0,
           marginLeft: 8,
+          color: THEME.text,
         }}
-        className="flex-1 text-gray-900 text-[15px]"
         placeholder={placeholder}
         placeholderTextColor={THEME.textSubtle}
         value={value}
@@ -43,7 +47,10 @@ export function SearchBar({
       {loading && <ActivityIndicator size="small" color={THEME.accent} />}
       {!loading && value.length > 0 && (
         <TouchableOpacity onPress={() => onChangeText("")}>
-          <View className="w-8 h-8 bg-gray-200 rounded-full items-center justify-center">
+          <View
+            className="w-8 h-8 rounded-full items-center justify-center"
+            style={{ backgroundColor: THEME.surfaceRaised }}
+          >
             <Ionicons name="close" size={18} color={THEME.textMuted} />
           </View>
         </TouchableOpacity>

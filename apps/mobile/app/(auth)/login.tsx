@@ -92,6 +92,18 @@ export default function LoginScreen() {
           </View>
 
           <TouchableOpacity
+            className="items-end"
+            onPress={() => router.push("/(auth)/forgot-password")}
+          >
+            <Text
+              className="text-sm font-semibold"
+              style={{ color: THEME.accent }}
+            >
+              Forgot password?
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
             className="rounded-2xl py-4 items-center mt-2"
             style={{ backgroundColor: THEME.accent }}
             onPress={handleLogin}

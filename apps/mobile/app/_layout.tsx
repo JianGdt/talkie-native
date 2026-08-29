@@ -41,10 +41,11 @@ function RootLayoutNav() {
     if (isLoading) return;
 
     const inAuthGroup = segments[0] === "(auth)";
+    const isResetPassword = segments[1] === "reset-password";
 
     if (!user && !inAuthGroup) {
       router.replace("/(auth)/login");
-    } else if (user && inAuthGroup) {
+    } else if (user && inAuthGroup && !isResetPassword) {
       router.replace("/(tabs)");
     }
   }, [user, isLoading, segments, router]);
