@@ -3,7 +3,7 @@ import { Pool } from "pg";
 export class ChannelService {
   constructor(private db: Pool) {}
 
-  async getAllChannels() {
+  async getAllChannels(userId?: string) {
     const query = `
     SELECT 
       c.id,
@@ -25,13 +25,14 @@ export class ChannelService {
         '[]'
       ) as active_users
     FROM channels c
+    ${userId ? "INNER JOIN channel_members own_cm ON c.id = own_cm.channel_id AND own_cm.user_id = $1::uuid" : ""}
     LEFT JOIN channel_members cm ON c.id = cm.channel_id
     LEFT JOIN user_profiles up ON cm.user_id = up.user_id
     GROUP BY c.id, c.name, c.description, c.category, c.created_at, c.updated_at
     ORDER BY c.created_at DESC
   `;
 
-    const result = await this.db.query(query);
+    const result = await this.db.query(query, userId ? [userId] : []);
     return result.rows;
   }
 
@@ -71,15 +72,41 @@ export class ChannelService {
     name: string,
     description?: string,
     category: "public" | "private" | "team" = "public",
+    createdBy?: string,
   ) {
-    const query = `
-      INSERT INTO channels (name, description, category)
-      VALUES ($1, $2, $3)
-      RETURNING id, name, description, category, created_at, updated_at
-    `;
+    const client = await this.db.connect();
 
-    const result = await this.db.query(query, [name, description, category]);
-    return result.rows[0];
+    try {
+      await client.query("BEGIN");
+      const result = await client.query(
+        `
+          INSERT INTO channels (name, description, category, created_by)
+          VALUES ($1, $2, $3, $4)
+          RETURNING id, name, description, category, created_at, updated_at
+        `,
+        [name, description, category, createdBy ?? null],
+      );
+      const channel = result.rows[0];
+
+      if (createdBy) {
+        await client.query(
+          `
+            INSERT INTO channel_members (channel_id, user_id)
+            VALUES ($1::uuid, $2::uuid)
+            ON CONFLICT (channel_id, user_id) DO NOTHING
+          `,
+          [channel.id, createdBy],
+        );
+      }
+
+      await client.query("COMMIT");
+      return channel;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async updateChannel(

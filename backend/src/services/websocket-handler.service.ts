@@ -24,6 +24,20 @@ const supabase = createClient(
   process.env.SUPABASE_ANON_KEY!,
 );
 
+const normalizeMessageType = (messageType: unknown, content?: string) => {
+  if (messageType === "image" || messageType === "file") return messageType;
+  if (messageType === "audio" || messageType === "system") return messageType;
+  if (messageType === "attachment") {
+    try {
+      const attachment = JSON.parse(content ?? "");
+      return attachment?.kind === "image" ? "image" : "file";
+    } catch {
+      return "file";
+    }
+  }
+  return "text";
+};
+
 class WebSocketHandler {
   private fastify: FastifyInstance | null = null;
   private db: Pool | null = null;
@@ -451,6 +465,7 @@ class WebSocketHandler {
           payload.channelId,
           userId,
           payload.content,
+          normalizeMessageType(payload.messageType, payload.content),
         );
 
         this.broadcastToChannel(payload.channelId, {
@@ -460,6 +475,10 @@ class WebSocketHandler {
           payload: {
             ...payload,
             messageId: savedMessage.id,
+            sender: {
+              userId,
+              username: connection.username,
+            },
             timestamp: savedMessage.timestamp,
           },
           timestamp: savedMessage.timestamp,
@@ -469,6 +488,7 @@ class WebSocketHandler {
           payload.conversationId,
           userId,
           payload.content,
+          normalizeMessageType(payload.messageType, payload.content),
         );
 
         const participants = await this.conversationService!.getParticipants(
@@ -486,6 +506,11 @@ class WebSocketHandler {
               username: connection.username,
               payload: {
                 ...payload,
+                messageId: savedMessage.id,
+                sender: {
+                  userId,
+                  username: connection.username,
+                },
                 timestamp: savedMessage.timestamp,
               },
               timestamp: savedMessage.timestamp,
@@ -628,6 +653,18 @@ class WebSocketHandler {
     } catch (err) {
       console.error("❌ broadcastToChannelMembers failed:", err);
     }
+  }
+
+  broadcastToUsers(
+    userIds: string[],
+    message: WebSocketMessage,
+    excludeUserId?: string,
+  ) {
+    userIds.forEach((userId) => {
+      if (excludeUserId && userId === excludeUserId) return;
+      const conn = connectionManager.getConnection(userId);
+      if (conn) this.sendMessage(conn.ws, message);
+    });
   }
 
   broadcastPresenceUpdate(userId: string, status: string) {

@@ -1,5 +1,4 @@
 import { Pool } from "pg";
-import { v4 as uuidv4 } from "uuid";
 import { Channel } from "../@types/message";
 import { User } from "../@types/websocket";
 
@@ -19,8 +18,7 @@ class ChannelManager {
 
   private async loadChannelsFromDatabase() {
     if (!this.db) {
-      console.warn("⚠️ Database not connected, using default channels");
-      this.initializeDefaultChannels();
+      console.warn("⚠️ Database not connected, channels unavailable");
       return;
     }
 
@@ -39,8 +37,7 @@ class ChannelManager {
       const result = await this.db.query(query);
 
       if (result.rows.length === 0) {
-        console.log("📦 No channels in database, creating defaults...");
-        await this.createDefaultChannels();
+        console.log("📦 No channels in database");
         return;
       }
 
@@ -59,121 +56,8 @@ class ChannelManager {
       console.log(`✅ Loaded ${result.rows.length} channels from database`);
     } catch (error) {
       console.error("❌ Failed to load channels from database:", error);
-      console.log("📦 Falling back to in-memory default channels");
-      this.initializeDefaultChannels();
+      this.channels.clear();
     }
-  }
-
-  private async createDefaultChannels() {
-    if (!this.db) {
-      this.initializeDefaultChannels();
-      return;
-    }
-
-    const defaultChannels = [
-      {
-        name: "General",
-        description: "Main communication channel",
-        category: "public",
-      },
-      {
-        name: "Random",
-        description: "Off-topic conversations",
-        category: "public",
-      },
-      {
-        name: "Announcements",
-        description: "Important updates and news",
-        category: "public",
-      },
-    ];
-
-    try {
-      for (const channelData of defaultChannels) {
-        const existing = await this.db.query(
-          "SELECT * FROM channels WHERE name = $1 LIMIT 1",
-          [channelData.name],
-        );
-
-        let channelId: string;
-        let createdAt: Date;
-
-        if (existing.rows.length === 0) {
-          channelId = uuidv4();
-          const result = await this.db.query(
-            `INSERT INTO channels (id, name, description, category, created_by, created_at, updated_at) 
-             VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
-             RETURNING id::text, created_at`,
-            [
-              channelId,
-              channelData.name,
-              channelData.description,
-              channelData.category,
-              null,
-            ],
-          );
-
-          channelId = result.rows[0].id;
-          createdAt = result.rows[0].created_at;
-
-          console.log(
-            `✅ Created default channel: ${channelData.name} (${channelId})`,
-          );
-        } else {
-          channelId = existing.rows[0].id;
-          createdAt = existing.rows[0].created_at;
-          console.log(
-            `✅ Loaded existing channel: ${channelData.name} (${channelId})`,
-          );
-        }
-
-        const channel: Channel = {
-          id: channelId,
-          name: channelData.name,
-          description: channelData.description,
-          participants: new Map(),
-          activeUsers: new Set(),
-          createdAt: createdAt,
-        };
-
-        this.channels.set(channelId, channel);
-      }
-
-      console.log(`✅ Initialized ${defaultChannels.length} default channels`);
-    } catch (error) {
-      console.log("📦 Using in-memory fallback channels");
-      this.initializeDefaultChannels();
-    }
-  }
-
-  private initializeDefaultChannels() {
-    const defaultChannels = [
-      {
-        id: uuidv4(),
-        name: "General",
-        description: "Main communication channel",
-      },
-      {
-        id: uuidv4(),
-        name: "Random",
-        description: "Off-topic conversations",
-      },
-      {
-        id: uuidv4(),
-        name: "Announcements",
-        description: "Important updates and news",
-      },
-    ];
-
-    defaultChannels.forEach((channelData) => {
-      const channel: Channel = {
-        ...channelData,
-        participants: new Map(),
-        activeUsers: new Set(),
-        createdAt: new Date(),
-      };
-      this.channels.set(channel.id, channel);
-    });
   }
 
   getChannel(channelId: string): Channel | undefined {

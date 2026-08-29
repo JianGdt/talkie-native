@@ -2,6 +2,22 @@ import { FastifyInstance } from "fastify";
 import { ConversationService } from "../services/conversation.service";
 import { authenticate } from "../middleware/authenticate";
 import { ConversationParams, CreateDirectMessageBody, CreateGroupBody, GetMessagesQuery, ToggleMuteBody, TogglePinBody } from "../@types/conversation";
+import { MessageType } from "../@types/message";
+import wsHandler from "../services/websocket-handler.service";
+
+const normalizeMessageType = (messageType: unknown, content?: string) => {
+  if (messageType === "image" || messageType === "file") return messageType;
+  if (messageType === "audio" || messageType === "system") return messageType;
+  if (messageType === "attachment") {
+    try {
+      const attachment = JSON.parse(content ?? "");
+      return attachment?.kind === "image" ? "image" : "file";
+    } catch {
+      return "file";
+    }
+  }
+  return "text";
+};
 
 
 export default async function conversationRoutes(fastify: FastifyInstance) {
@@ -116,6 +132,82 @@ export default async function conversationRoutes(fastify: FastifyInstance) {
       }
     },
   );
+
+  fastify.post<{
+    Params: ConversationParams;
+    Body: { content?: string; messageType?: string };
+  }>("/api/conversations/:conversationId/messages", async (request, reply) => {
+    try {
+      const { conversationId } = request.params;
+      const { content } = request.body ?? {};
+      const messageType = normalizeMessageType(
+        request.body?.messageType,
+        content,
+      );
+
+      if (!content || content.trim().length === 0) {
+        return reply.status(400).send({ error: "Missing message content" });
+      }
+
+      const isMember = await conversationService.isParticipant(
+        conversationId,
+        request.userId,
+      );
+      if (!isMember) {
+        return reply.status(403).send({ error: "Access denied" });
+      }
+
+      const savedMessage = await conversationService.saveMessage(
+        conversationId,
+        request.userId,
+        content,
+        messageType,
+      );
+      const participants =
+        await conversationService.getParticipants(conversationId);
+      const sender = participants.find((p) => p.id === request.userId);
+      const timestamp = savedMessage.timestamp;
+      const payload = {
+        conversationId,
+        content,
+        messageType,
+        messageId: savedMessage.id,
+        sender: {
+          userId: request.userId,
+          username: sender?.name ?? "",
+        },
+        timestamp,
+      };
+
+      wsHandler.broadcastToUsers(
+        participants.map((p) => p.id),
+        {
+          type: MessageType.MESSAGE,
+          userId: request.userId,
+          username: sender?.name ?? "",
+          payload,
+          timestamp,
+        },
+        request.userId,
+      );
+
+      return reply.status(201).send({
+        id: savedMessage.id,
+        conversation_id: conversationId,
+        sender_id: request.userId,
+        content,
+        message_type: messageType,
+        created_at: savedMessage.created_at,
+        sender_username: sender?.name ?? "",
+        timestamp,
+      });
+    } catch (error) {
+      return reply.status(500).send({
+        error: "Failed to send message",
+        message: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  });
 
   fastify.post<{ Params: ConversationParams }>(
     "/api/conversations/:conversationId/read",

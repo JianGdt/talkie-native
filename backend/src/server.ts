@@ -40,7 +40,7 @@ async function start() {
         }
       },
       credentials: true,
-      methods: [""],
+      methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     });
 
     await fastify.register(databasePlugin);

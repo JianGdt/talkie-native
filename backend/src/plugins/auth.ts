@@ -16,6 +16,9 @@ declare module "fastify" {
 const PUBLIC_ROUTES = new Set([
   "/health",
   "/ws",
+  "/auth/register",
+  "/auth/login",
+  "/auth/forgot-password",
 ]);
 
 export default fp(async function authPlugin(fastify: FastifyInstance) {
@@ -25,6 +28,7 @@ export default fp(async function authPlugin(fastify: FastifyInstance) {
     "preHandler",
     async (request: FastifyRequest, reply: FastifyReply) => {
       if (
+        request.method === "OPTIONS" ||
         PUBLIC_ROUTES.has(request.url.split("?")[0]) ||
         request.headers.upgrade === "websocket"
       ) {

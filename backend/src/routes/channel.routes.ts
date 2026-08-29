@@ -1,13 +1,31 @@
 import { FastifyInstance } from "fastify";
 import { ChannelService } from "../services/channel.service";
 import wsHandler from "../services/websocket-handler.service";
+import { MessageType } from "../@types/message";
+import { authenticate } from "../middleware/authenticate";
+
+const normalizeMessageType = (messageType: unknown, content?: string) => {
+  if (messageType === "image" || messageType === "file") return messageType;
+  if (messageType === "audio" || messageType === "system") return messageType;
+  if (messageType === "attachment") {
+    try {
+      const attachment = JSON.parse(content ?? "");
+      return attachment?.kind === "image" ? "image" : "file";
+    } catch {
+      return "file";
+    }
+  }
+  return "text";
+};
 
 export default async function channelRoutes(fastify: FastifyInstance) {
   const channelService = new ChannelService(fastify.db);
 
+  fastify.addHook("preHandler", authenticate);
+
   fastify.get("/api/channels", async (request, reply) => {
     try {
-      const channels = await channelService.getAllChannels();
+      const channels = await channelService.getAllChannels(request.userId);
 
       const withMembership = await Promise.all(
         channels.map(async (ch) => ({
@@ -66,6 +84,7 @@ export default async function channelRoutes(fastify: FastifyInstance) {
           name,
           description,
           category,
+          request.userId,
         );
         return reply.status(201).send(channel);
       } catch (error) {
@@ -203,6 +222,80 @@ export default async function channelRoutes(fastify: FastifyInstance) {
     } catch (error) {
       return reply.status(500).send({
         error: "Failed to fetch channel messages",
+        message: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  });
+
+  fastify.post<{
+    Params: ChannelRouteTypes.ChannelParams;
+    Body: { content?: string; messageType?: string };
+  }>("/api/channels/:channelId/messages", async (request, reply) => {
+    try {
+      const { channelId } = request.params;
+      const { content } = request.body ?? {};
+      const messageType = normalizeMessageType(
+        request.body?.messageType,
+        content,
+      );
+
+      if (!content || content.trim().length === 0) {
+        return reply.status(400).send({ error: "Missing message content" });
+      }
+
+      const isMember = await channelService.isMember(channelId, request.userId);
+      if (!isMember) {
+        return reply
+          .status(403)
+          .send({ error: "Not a member of this channel" });
+      }
+
+      const savedMessage = await channelService.saveMessage(
+        channelId,
+        request.userId,
+        content,
+        messageType,
+      );
+      const members = await channelService.getChannelMembers(channelId);
+      const sender = members.find((member) => member.id === request.userId);
+      const timestamp = savedMessage.timestamp;
+      const payload = {
+        channelId,
+        content,
+        messageType,
+        messageId: savedMessage.id,
+        sender: {
+          userId: request.userId,
+          username: sender?.name ?? "",
+        },
+        timestamp,
+      };
+
+      await wsHandler.broadcastToChannelMembers(
+        channelId,
+        {
+          type: MessageType.MESSAGE,
+          userId: request.userId,
+          username: sender?.name ?? "",
+          payload,
+          timestamp,
+        },
+        request.userId,
+      );
+
+      return reply.status(201).send({
+        id: savedMessage.id,
+        channel_id: channelId,
+        sender_id: request.userId,
+        content,
+        message_type: messageType,
+        created_at: savedMessage.created_at,
+        sender_username: sender?.name ?? "",
+        timestamp,
+      });
+    } catch (error) {
+      return reply.status(500).send({
+        error: "Failed to send message",
         message: error instanceof Error ? error.message : "Unknown error",
       });
     }
