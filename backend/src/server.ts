@@ -23,11 +23,7 @@ async function start() {
     await fastify.register(cors, {
       origin: (origin, cb) => {
         const allowedOrigins = [
-          ...env.ALLOWED_ORIGINS.split(","),
-          "http://localhost:8081",
-          "http://192.168.1.10:8081",
-          "exp://192.168.1.10:8081",
-          "https://talkie-native-ptqm.vercel.app",
+          ...env.ALLOWED_ORIGINS.split(",").map((origin) => origin.trim()),
         ];
 
         if (
