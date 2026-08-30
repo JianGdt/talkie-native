@@ -1,5 +1,7 @@
 import { supabase } from "@/lib/supabase/client";
-const API_URL = "http://localhost:3001";
+import { ENV } from "@/constant/env";
+
+const API_URL = ENV.API_URL;
 if (!API_URL) throw new Error("EXPO_PUBLIC_API_URL is not defined");
 
 export class ApiError extends Error {

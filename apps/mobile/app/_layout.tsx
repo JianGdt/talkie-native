@@ -12,6 +12,7 @@ import {
   Geist_600SemiBold,
   Geist_700Bold,
 } from "@expo-google-fonts/geist";
+import ToastManager from "toastify-react-native";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -46,7 +47,7 @@ function RootLayoutNav() {
     if (!user && !inAuthGroup) {
       router.replace("/(auth)/login");
     } else if (user && inAuthGroup && !isResetPassword) {
-      router.replace("/(tabs)");
+      router.replace("/");
     }
   }, [user, isLoading, segments, router]);
 
@@ -82,6 +83,12 @@ export default function RootLayout() {
   return (
     <AuthProvider>
       <RootLayoutNav />
+      <ToastManager
+        position="top"
+        theme="light"
+        showProgressBar={false}
+        useModal={false}
+      />
     </AuthProvider>
   );
 }

@@ -1,6 +1,5 @@
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Text,
@@ -10,6 +9,7 @@ import {
 } from "react-native";
 import { router } from "expo-router";
 import { useState } from "react";
+import { Toast } from "toastify-react-native";
 import { THEME } from "@/constant/theme";
 import { authService } from "@/api/services/authServices";
 
@@ -19,25 +19,21 @@ export default function ForgotPasswordScreen() {
 
   const handleSubmit = async () => {
     if (!email.trim()) {
-      Alert.alert("Missing email", "Please enter your email address.");
+      Toast.warn("Please enter your email address.", "top");
       return;
     }
 
     try {
       setSubmitting(true);
       const redirectTo =
-        Platform.OS === "web" ? `${window.location.origin}/reset-password` : undefined;
+        Platform.OS === "web"
+          ? `${window.location.origin}/reset-password`
+          : undefined;
       await authService.forgotPassword(email.trim(), redirectTo);
-      Alert.alert(
-        "Check your email",
-        "We sent a password reset link to your email address.",
-      );
+      Toast.success("Password reset link sent. Check your email.", "top");
       router.replace("/(auth)/login");
     } catch (error) {
-      Alert.alert(
-        "Reset failed",
-        error instanceof Error ? error.message : "Could not send reset email.",
-      );
+      Toast.error(getResetErrorMessage(error), "top");
     } finally {
       setSubmitting(false);
     }
@@ -93,4 +89,24 @@ export default function ForgotPasswordScreen() {
       </View>
     </KeyboardAvoidingView>
   );
+}
+
+function getResetErrorMessage(error: unknown) {
+  if (!(error instanceof Error)) {
+    return "Could not send reset email. Please try again.";
+  }
+
+  const message = error.message.trim();
+  if (!message) {
+    return "Could not send reset email. Please try again.";
+  }
+
+  if (
+    message.includes("401") ||
+    message.toLowerCase().includes("unauthorized")
+  ) {
+    return "Reset link request is unauthorized. Please try again later.";
+  }
+
+  return message;
 }

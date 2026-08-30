@@ -1,8 +1,8 @@
 import { create } from "zustand";
-import { Platform } from "react-native";
 import { MessageType, WebSocketMessage } from "@/@types/talkie";
 import { supabase } from "@/lib/supabase/client";
 import { WebSocketStore } from "@/@types/websocket";
+import { ENV } from "@/constant/env";
 import {
   getReconnectDelay,
   MAX_RECONNECT_ATTEMPTS,
@@ -26,10 +26,7 @@ const formatPreviewContent = (content?: string) => {
 };
 
 const getWebSocketURL = (): string => {
-  const wsUrl = "ws://localhost:3001/ws";
-  const wsHost = "localhost:3001";
-
-  return Platform.OS === "web" ? wsUrl : `ws://${wsHost}/ws`;
+  return ENV.WS_URL;
 };
 const getUsernameFromSession = async (userId: string): Promise<string> => {
   try {

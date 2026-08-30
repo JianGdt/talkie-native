@@ -145,27 +145,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     fullNameOverride?: string,
     avatarUrl?: string,
   ): Promise<User> => {
+    const { data: existingProfile, error: fetchError } = await supabase
+      .from("user_profiles")
+      .select("*")
+      .eq("user_id", authUser.id)
+      .maybeSingle();
+
+    if (fetchError) throw fetchError;
+
     const fullName =
       fullNameOverride ||
+      existingProfile?.full_name ||
       authUser?.user_metadata?.full_name ||
       authUser.email?.split("@")[0] ||
       "User";
     const username =
+      existingProfile?.username ||
       authUser.email
         ?.split("@")[0]
         .toLowerCase()
         .replace(/[^a-z0-9]/g, "") || `user_${Date.now()}`;
 
-    const { data, error } = await supabase
-      .from("user_profiles")
-      .insert({
-        user_id: authUser.id,
-        username,
-        full_name: fullName,
-        avatar_url: avatarUrl ?? null,
-      })
-      .select()
-      .single();
+    const profilePayload = {
+      username,
+      full_name: fullName,
+      updated_at: new Date().toISOString(),
+      ...(avatarUrl !== undefined ? { avatar_url: avatarUrl } : {}),
+    };
+
+    const query = existingProfile
+      ? supabase
+          .from("user_profiles")
+          .update(profilePayload)
+          .eq("user_id", authUser.id)
+      : supabase.from("user_profiles").insert({
+          user_id: authUser.id,
+          ...profilePayload,
+          avatar_url: avatarUrl ?? null,
+        });
+
+    const { data, error } = await query.select().single();
 
     if (error) throw error;
 

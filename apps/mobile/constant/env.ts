@@ -1,7 +1,9 @@
 export const ENV = {
   // API Configuration
-  API_URL: process.env.EXPO_PUBLIC_API_URL || "http://192.168.1.10:3001",
-  WS_URL: process.env.EXPO_PUBLIC_WS_URL || "http://192.168.1.10:3001/ws",
+  API_URL:
+    process.env.EXPO_PUBLIC_API_URL || "https://wave-api-5k28.onrender.com",
+  WS_URL:
+    process.env.EXPO_PUBLIC_WS_URL || "wss://wave-api-5k28.onrender.com/ws",
 
   // SuEXPO_PUBLIC_WS_URLpabase Configuration
   SUPABASE_URL: process.env.EXPO_PUBLIC_SUPABASE_URL || "",

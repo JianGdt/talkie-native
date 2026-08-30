@@ -7,7 +7,7 @@ export default function AuthLayout() {
   const isResetPassword = segments[1] === "reset-password";
 
   if (isLoading) return null;
-  if (user && !isResetPassword) return <Redirect href="/(tabs)" />;
+  if (user && !isResetPassword) return <Redirect href="/" />;
 
   return <Stack screenOptions={{ headerShown: false }} />;
 }
